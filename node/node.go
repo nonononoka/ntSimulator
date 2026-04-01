@@ -2,7 +2,7 @@ package node
 
 import (
 	"fmt"
-	"nt-simulator/networkgraph"
+	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
 )
 
@@ -10,7 +10,7 @@ type N struct {
 	nodeId       int
 	address      string
 	links        []Link
-	networkgraph *networkgraph.NetworkGraph
+	networkgraph *nteventsched.NetworkGraph
 }
 
 type Link struct {
@@ -19,19 +19,19 @@ type Link struct {
 	bandwidth    float64
 	delay        float64
 	packet_loss  float64
-	networkgraph *networkgraph.NetworkGraph
+	networkgraph *nteventsched.NetworkGraph
 }
 
 func (n *N) Address() string {
 	return n.address
 }
 
-func NewNode(node_id int, address string, networkgraph *networkgraph.NetworkGraph) *N {
+func NewNode(node_id int, address string, networkgraph *nteventsched.NetworkGraph) *N {
 	networkgraph.AddNode(node_id)
 	return &N{nodeId: node_id, address: address, networkgraph: networkgraph}
 }
 
-func NewLink(node_x *N, node_y *N, bandwidth float64, delay float64, packet_loss float64, networkgraph *networkgraph.NetworkGraph) *Link {
+func NewLink(node_x *N, node_y *N, bandwidth float64, delay float64, packet_loss float64, networkgraph *nteventsched.NetworkGraph) *Link {
 	networkgraph.AddEdge(node_x.nodeId, node_y.nodeId, fmt.Sprintf("%v Mbps %v s\n", bandwidth/1000000, delay), bandwidth, delay)
 	l := Link{node_x: node_x, node_y: node_y, bandwidth: bandwidth, delay: delay, packet_loss: packet_loss, networkgraph: networkgraph}
 	node_x.addLink(l)
@@ -56,6 +56,7 @@ func (l *Link) PrintLink() {
 	fmt.Printf("%v <-> %v 帯域幅: %v 遅延: %v パケットロス率：%v\n", l.node_x.nodeId, l.node_y.nodeId, l.bandwidth, l.delay, l.packet_loss)
 }
 
+// from_nodeからto_nodeにパケットを転送する関数
 func (l *Link) transferPacket(p *packet.Packet, from_node *N) {
 	var toNode *N
 	if l.node_x.nodeId != from_node.nodeId {
@@ -72,7 +73,7 @@ func (n *N) addLink(link Link) {
 }
 
 func (n *N) SendPacket(p *packet.Packet) {
-	if p.Destination == n.address {
+	if p.Header.Destination == n.address {
 		n.receivePacket(p)
 	} else {
 		for _, l := range n.links {
@@ -85,6 +86,7 @@ func (n *N) SendPacket(p *packet.Packet) {
 			}
 			fmt.Printf("ノード%vからノード%vにパケットを転送\n", n.nodeId, nextNodeId)
 			l.transferPacket(p, from_node)
+			break
 		}
 	}
 }

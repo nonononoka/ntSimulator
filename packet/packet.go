@@ -1,11 +1,38 @@
 package packet
 
-type Packet struct {
+import (
+	"fmt"
+	"strings"
+
+	"github.com/google/uuid"
+)
+
+type Header struct {
 	Source      string
 	Destination string
-	Payload     string
 }
 
-func NewPacket(s string, d string, p string) *Packet {
-	return &Packet{Source: s, Destination: d, Payload: p}
+type Packet struct {
+	Header  Header
+	Payload string
+	Size    int
+	Id      string
+}
+
+func NewPacket(s string, d string, header_size int, payload_size int) *Packet {
+	p := strings.Repeat("X", payload_size)
+	size := header_size + payload_size
+	return &Packet{
+		Header: Header{
+			Source:      s,
+			Destination: d,
+		},
+		Payload: p,
+		Size:    size,
+		Id:      uuid.New().String(),
+	}
+}
+
+func (p *Packet) PrintPacket() {
+	fmt.Printf("パケット(送信元: %s), (宛先:%s), ペイロード: %s", p.Header.Source, p.Header.Destination, p.Payload)
 }

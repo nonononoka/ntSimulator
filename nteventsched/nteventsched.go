@@ -1,14 +1,22 @@
-package networkgraph
+package nteventsched
 
 import (
 	"fmt"
 	"math"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
 )
+
+type NtEventSched struct {
+	currentTime time.Time
+	eventId     int
+	logEnabled  bool
+	verbose     bool
+}
 
 type NetworkGraph struct {
 	G graph.Graph[int, int]
