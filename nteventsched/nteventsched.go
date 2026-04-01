@@ -16,17 +16,24 @@ type NtEventSched struct {
 	eventId     int
 	logEnabled  bool
 	verbose     bool
+	*NetworkGraph
 }
 
 type NetworkGraph struct {
 	G graph.Graph[int, int]
 }
 
-func NewNetworkGraph() *NetworkGraph {
+func newNetworkGraph() *NetworkGraph {
 	return &NetworkGraph{
 		G: graph.New(
 			graph.IntHash,
 		),
+	}
+}
+
+func NewNtEventSched() *NtEventSched {
+	return &NtEventSched{
+		NetworkGraph: newNetworkGraph(),
 	}
 }
 

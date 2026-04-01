@@ -6,10 +6,10 @@ import (
 )
 
 func main() {
-	ng := nteventsched.NewNetworkGraph()
-	n1 := node.NewNode(1, "00:01", ng)
-	n2 := node.NewNode(2, "00:02", ng)
-	l1 := node.NewLink(n1, n2, 10000, 0.001, 0.0, ng)
+	nes := nteventsched.NewNtEventSched()
+	n1 := node.NewNode(1, "00:01", nes)
+	n2 := node.NewNode(2, "00:02", nes)
+	l1 := node.NewLink(n1, n2, 10000, 0.001, 0.0, nes)
 	n1.PrintNode()
 	n2.PrintNode()
 	l1.PrintLink()
@@ -28,12 +28,12 @@ func main() {
 	// }
 
 	// n3を作成
-	n3 := node.NewNode(3, "00:03", ng)
-	l2 := node.NewLink(n1, n3, 1000, 0.01, 0.0, ng)
+	n3 := node.NewNode(3, "00:03", nes)
+	l2 := node.NewLink(n1, n3, 1000, 0.01, 0.0, nes)
 	l2.PrintLink()
 
-	n4 := node.NewNode(4, "00:04", ng)
-	l3 := node.NewLink(n2, n4, 1000, 0.01, 0.0, ng)
+	n4 := node.NewNode(4, "00:04", nes)
+	l3 := node.NewLink(n2, n4, 1000, 0.01, 0.0, nes)
 	l3.PrintLink()
-	ng.Visualize()
+	nes.Visualize()
 }

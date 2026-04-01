@@ -7,33 +7,33 @@ import (
 )
 
 type N struct {
-	nodeId       int
-	address      string
-	links        []Link
-	networkgraph *nteventsched.NetworkGraph
+	nodeId  int
+	address string
+	links   []Link
+	nes     *nteventsched.NtEventSched
 }
 
 type Link struct {
-	node_x       *N
-	node_y       *N
-	bandwidth    float64
-	delay        float64
-	packet_loss  float64
-	networkgraph *nteventsched.NetworkGraph
+	node_x      *N
+	node_y      *N
+	bandwidth   float64
+	delay       float64
+	packet_loss float64
+	nes         *nteventsched.NtEventSched
 }
 
 func (n *N) Address() string {
 	return n.address
 }
 
-func NewNode(node_id int, address string, networkgraph *nteventsched.NetworkGraph) *N {
-	networkgraph.AddNode(node_id)
-	return &N{nodeId: node_id, address: address, networkgraph: networkgraph}
+func NewNode(node_id int, address string, nes *nteventsched.NtEventSched) *N {
+	nes.AddNode(node_id)
+	return &N{nodeId: node_id, address: address, nes: nes}
 }
 
-func NewLink(node_x *N, node_y *N, bandwidth float64, delay float64, packet_loss float64, networkgraph *nteventsched.NetworkGraph) *Link {
-	networkgraph.AddEdge(node_x.nodeId, node_y.nodeId, fmt.Sprintf("%v Mbps %v s\n", bandwidth/1000000, delay), bandwidth, delay)
-	l := Link{node_x: node_x, node_y: node_y, bandwidth: bandwidth, delay: delay, packet_loss: packet_loss, networkgraph: networkgraph}
+func NewLink(node_x *N, node_y *N, bandwidth float64, delay float64, packet_loss float64, nes *nteventsched.NtEventSched) *Link {
+	nes.AddEdge(node_x.nodeId, node_y.nodeId, fmt.Sprintf("%v Mbps %v s\n", bandwidth/1000000, delay), bandwidth, delay)
+	l := Link{node_x: node_x, node_y: node_y, bandwidth: bandwidth, delay: delay, packet_loss: packet_loss, nes: nes}
 	node_x.addLink(l)
 	node_y.addLink(l)
 	return &l
