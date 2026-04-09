@@ -36,4 +36,5 @@ func main() {
 	l3 := node.NewLink(n2, n4, 1000, 0.01, 0.0, nes)
 	l3.PrintLink()
 	nes.Visualize()
+	nes.Run()
 }

@@ -1,11 +1,11 @@
 package nteventsched
 
 import (
+	"container/heap"
 	"fmt"
 	"math"
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
@@ -16,7 +16,7 @@ type Event struct {
 	eventTime int
 	eventId   int
 	args      []any
-	callback  func()
+	callback  func(args ...any)
 }
 
 type PriorityQueue []*Event
@@ -45,11 +45,23 @@ func (pq *PriorityQueue) Pop() any {
 
 type NtEventSched struct {
 	events      PriorityQueue
-	currentTime time.Time
+	currentTime int
 	eventId     int
 	logEnabled  bool
 	verbose     bool
 	*NetworkGraph
+}
+
+func (nes *NtEventSched) Run() {
+	pq := nes.events
+	for pq.Len() > 0 {
+		event := heap.Pop(&pq).(*Event)
+		eventTime := event.eventTime
+		callback := event.callback
+		args := event.args
+		callback(args...)
+		nes.currentTime = eventTime
+	}
 }
 
 // network graph関連

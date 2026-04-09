@@ -21,10 +21,10 @@ strict graph {
 
 	"2" [  weight=0 ];
 
-	"2" -- "4" [ color="yellow", label="0.001 Mbps 0.01 s
-", penwidth="3.00",  weight=0 ];
-
 	"2" -- "1" [ color="green", label="0.01 Mbps 0.001 s
 ", penwidth="4.00",  weight=0 ];
+
+	"2" -- "4" [ color="yellow", label="0.001 Mbps 0.01 s
+", penwidth="3.00",  weight=0 ];
 
 }
