@@ -11,7 +11,40 @@ import (
 	"github.com/dominikbraun/graph/draw"
 )
 
+// priority queueに突っ込むnetwork eventの型
+type Event struct {
+	eventTime int
+	eventId   int
+	args      []any
+	callback  func()
+}
+
+type PriorityQueue []*Event
+
+// priorityQueueがheapをimplementするためのメソッドたち
+
+func (pq PriorityQueue) Len() int { return len(pq) }
+
+func (pq PriorityQueue) Less(i, j int) bool {
+	return pq[i].eventTime < pq[j].eventTime
+}
+
+func (pq PriorityQueue) Swap(i, j int) { pq[i], pq[j] = pq[j], pq[i] }
+
+func (pq *PriorityQueue) Push(x any) {
+	*pq = append(*pq, x.(*Event)) // type assertion
+}
+
+func (pq *PriorityQueue) Pop() any {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	*pq = old[:n-1]
+	return item
+}
+
 type NtEventSched struct {
+	events      PriorityQueue
 	currentTime time.Time
 	eventId     int
 	logEnabled  bool
@@ -19,6 +52,7 @@ type NtEventSched struct {
 	*NetworkGraph
 }
 
+// network graph関連
 type NetworkGraph struct {
 	G graph.Graph[int, int]
 }
@@ -31,10 +65,12 @@ func newNetworkGraph() *NetworkGraph {
 	}
 }
 
+// heap.Initは既存の要素をヒープ順に並べ直すためのもので，空スライスならそのままで動く
 func NewNtEventSched() *NtEventSched {
-	return &NtEventSched{
+	sched := &NtEventSched{
 		NetworkGraph: newNetworkGraph(),
 	}
+	return sched
 }
 
 func (ng *NetworkGraph) AddNode(nodeId int) {
