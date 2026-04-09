@@ -64,6 +64,11 @@ func (nes *NtEventSched) Run() {
 	}
 }
 
+func (nes *NtEventSched) ScheduleEvent(eventTime int, callback func(args ...any), args ...any) {
+	heap.Push(&nes.events, &Event{eventTime: eventTime, eventId: nes.eventId, callback: callback, args: args})
+	nes.eventId += 1
+}
+
 // network graph関連
 type NetworkGraph struct {
 	G graph.Graph[int, int]
