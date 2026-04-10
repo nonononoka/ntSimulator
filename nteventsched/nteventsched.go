@@ -45,7 +45,7 @@ func (pq *PriorityQueue) Pop() any {
 
 type NtEventSched struct {
 	events      PriorityQueue
-	currentTime int
+	CurrentTime int
 	eventId     int
 	logEnabled  bool
 	verbose     bool
@@ -60,7 +60,7 @@ func (nes *NtEventSched) Run() {
 		callback := event.callback
 		args := event.args
 		callback(args...)
-		nes.currentTime = eventTime
+		nes.CurrentTime = eventTime
 	}
 }
 

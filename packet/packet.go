@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"nt-simulator/nteventsched"
+
 	"github.com/google/uuid"
 )
 
@@ -13,13 +15,15 @@ type Header struct {
 }
 
 type Packet struct {
-	Header  Header
-	Payload string
-	Size    int
-	Id      string
+	Header       Header
+	Payload      string
+	Size         int
+	Id           string
+	creationTime int
+	arrivalTime  int
 }
 
-func NewPacket(s string, d string, header_size int, payload_size int) *Packet {
+func NewPacket(s string, d string, header_size int, payload_size int, nes *nteventsched.NtEventSched) *Packet {
 	p := strings.Repeat("X", payload_size)
 	size := header_size + payload_size
 	return &Packet{
@@ -27,9 +31,10 @@ func NewPacket(s string, d string, header_size int, payload_size int) *Packet {
 			Source:      s,
 			Destination: d,
 		},
-		Payload: p,
-		Size:    size,
-		Id:      uuid.New().String(),
+		Payload:      p,
+		Size:         size,
+		Id:           uuid.New().String(),
+		creationTime: nes.CurrentTime,
 	}
 }
 
