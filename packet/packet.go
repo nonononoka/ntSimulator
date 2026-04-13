@@ -17,14 +17,14 @@ type Header struct {
 type Packet struct {
 	Header       Header
 	Payload      string
-	Size         int
+	Size         float64
 	Id           string
 	creationTime int
 	arrivalTime  int
 }
 
-func NewPacket(s string, d string, header_size int, payload_size int, nes *nteventsched.NtEventSched) *Packet {
-	p := strings.Repeat("X", payload_size)
+func NewPacket(s string, d string, header_size float64, payload_size float64, nes *nteventsched.NtEventSched) *Packet {
+	p := strings.Repeat("X", int(payload_size))
 	size := header_size + payload_size
 	return &Packet{
 		Header: Header{
@@ -40,4 +40,8 @@ func NewPacket(s string, d string, header_size int, payload_size int, nes *nteve
 
 func (p *Packet) PrintPacket() {
 	fmt.Printf("パケット(送信元: %s), (宛先:%s), ペイロード: %s", p.Header.Source, p.Header.Destination, p.Payload)
+}
+
+func (p *Packet) SetArriced(time int) {
+	p.arrivalTime = time
 }
