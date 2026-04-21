@@ -45,3 +45,7 @@ func (p *Packet) PrintPacket() {
 func (p *Packet) SetArriced(time int) {
 	p.arrivalTime = time
 }
+
+func (p *Packet) ArrivalTime() int {
+	return p.arrivalTime
+}

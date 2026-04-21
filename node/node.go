@@ -96,7 +96,35 @@ func (n *N) SendPacket(p *packet.Packet) {
 }
 
 func (n *N) receivePacket(p *packet.Packet) {
+	if p.ArrivalTime() == -1 {
+		return
+	}
 	fmt.Printf("ノード%vがパケットを受信: %s\n", n.nodeId, p.Payload)
+	if p.Header.Destination == n.address {
+		p.SetArriced(n.nes.CurrentTime)
+	} else {
+		// 宛先が自分自身にない場合
+	}
+}
+
+func (n *N) createPacket(destination string, headerSize float64, payloadSize float64) {
+	p := packet.NewPacket(n.address, destination, headerSize, payloadSize, n.nes)
+	// TODO：log_packet_info
+	n.SendPacket(p)
+}
+
+func (n *N) SetTraffic(destination string, bitrate float64, startTime int, duration int, headerSize float64, payloadSize float64, burstiness float64) {
+	endTime := startTime + duration
+	packetSize := headerSize + payloadSize
+	interval := int((packetSize * 8) / bitrate * burstiness)
+
+	// 全部のcreatePacketのスケジュールを最初にしておく
+	for t := startTime; t < endTime; t += interval {
+		t := t
+		n.nes.ScheduleEvent(t, func(args ...any) {
+			n.createPacket(destination, headerSize, payloadSize)
+		})
+	}
 }
 
 // Linkの構造体
