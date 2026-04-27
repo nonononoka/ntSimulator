@@ -14,7 +14,7 @@ import (
 
 // priority queueに突っ込むnetwork eventの型
 type Event struct {
-	eventTime int
+	eventTime float64
 	eventId   int
 	args      []any
 	callback  func(args ...any)
@@ -46,7 +46,7 @@ func (pq *PriorityQueue) Pop() any {
 
 type NtEventSched struct {
 	events      PriorityQueue
-	CurrentTime int
+	CurrentTime float64
 	eventId     int
 	logEnabled  bool
 	verbose     bool
@@ -55,18 +55,14 @@ type NtEventSched struct {
 }
 
 func (nes *NtEventSched) Run() {
-	pq := nes.events
-	for pq.Len() > 0 {
-		event := heap.Pop(&pq).(*Event)
-		eventTime := event.eventTime
-		callback := event.callback
-		args := event.args
-		nes.CurrentTime = eventTime
-		callback(args...)
+	for nes.events.Len() > 0 {
+		event := heap.Pop(&nes.events).(*Event)
+		nes.CurrentTime = event.eventTime
+		event.callback(event.args...)
 	}
 }
 
-func (nes *NtEventSched) ScheduleEvent(eventTime int, callback func(args ...any), args ...any) {
+func (nes *NtEventSched) ScheduleEvent(eventTime float64, callback func(args ...any), args ...any) {
 	heap.Push(&nes.events, &Event{eventTime: eventTime, eventId: nes.eventId, callback: callback, args: args})
 	nes.eventId += 1
 }
@@ -120,7 +116,7 @@ func newNetworkGraph() *NetworkGraph {
 }
 
 type packetEvent struct {
-	time     int
+	time     float64
 	event    string
 	nodeId   int
 	packetId string
@@ -132,8 +128,8 @@ type packetLog struct {
 	source       string
 	destination  string
 	size         float64
-	creationTime int
-	arrivalTime  int
+	creationTime float64
+	arrivalTime  float64
 	events       []*packetEvent
 }
 

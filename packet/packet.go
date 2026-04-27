@@ -17,11 +17,11 @@ type Packet struct {
 	Payload      string
 	Size         float64
 	Id           string
-	creationTime int
-	arrivalTime  int
+	creationTime float64
+	arrivalTime  float64
 }
 
-func NewPacket(s string, d string, header_size float64, payload_size float64, currentTime int) *Packet {
+func NewPacket(s string, d string, header_size float64, payload_size float64, currentTime float64) *Packet {
 	p := strings.Repeat("X", int(payload_size))
 	size := header_size + payload_size
 	return &Packet{
@@ -40,14 +40,14 @@ func (p *Packet) PrintPacket() {
 	fmt.Printf("パケット(送信元: %s), (宛先:%s), ペイロード: %s", p.Header.Source, p.Header.Destination, p.Payload)
 }
 
-func (p *Packet) SetArrived(time int) {
+func (p *Packet) SetArrived(time float64) {
 	p.arrivalTime = time
 }
 
-func (p *Packet) ArrivalTime() int {
+func (p *Packet) ArrivalTime() float64 {
 	return p.arrivalTime
 }
 
-func (p *Packet) CreationTime() int {
+func (p *Packet) CreationTime() float64 {
 	return p.creationTime
 }
