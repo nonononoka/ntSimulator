@@ -31,8 +31,8 @@ func (nes *NtEventSched) LogPacketInfo(p *packet.Packet, eventType string, nodeI
 	_, ok := nes.packetLogs[p.Id]
 	if !ok {
 		nes.packetLogs[p.Id] = &packetLog{
-			source:       p.Header.Source,
-			destination:  p.Header.Destination,
+			source:       p.Header.SourceMac,
+			destination:  p.Header.DestinationMac,
 			size:         p.Size,
 			creationTime: p.CreationTime(),
 			arrivalTime:  p.ArrivalTime(),
@@ -50,14 +50,14 @@ func (nes *NtEventSched) LogPacketInfo(p *packet.Packet, eventType string, nodeI
 		event:    eventType,
 		nodeId:   nodeId,
 		packetId: p.Id,
-		src:      p.Header.Source,
-		dst:      p.Header.Destination,
+		src:      p.Header.SourceMac,
+		dst:      p.Header.DestinationMac,
 	}
 	nes.packetLogs[p.Id].events = append(nes.packetLogs[p.Id].events, &eventInfo)
 
 	if nes.verbose {
 		fmt.Printf("time: %v, node: %v, event: %s, packet: %v, src: %s, dst: %s\n",
-			nes.CurrentTime, nodeId, eventType, p.Id, p.Header.Source, p.Header.Destination)
+			nes.CurrentTime, nodeId, eventType, p.Id, p.Header.SourceMac, p.Header.DestinationMac)
 	}
 }
 

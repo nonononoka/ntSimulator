@@ -8,8 +8,8 @@ import (
 )
 
 type Header struct {
-	Source      string
-	Destination string
+	SourceMac      string
+	DestinationMac string
 }
 
 type Packet struct {
@@ -26,8 +26,8 @@ func NewPacket(s string, d string, header_size float64, payload_size float64, cu
 	size := header_size + payload_size
 	return &Packet{
 		Header: Header{
-			Source:      s,
-			Destination: d,
+			SourceMac:      s,
+			DestinationMac: d,
 		},
 		Payload:      p,
 		Size:         size,
@@ -37,7 +37,7 @@ func NewPacket(s string, d string, header_size float64, payload_size float64, cu
 }
 
 func (p *Packet) PrintPacket() {
-	fmt.Printf("パケット(送信元: %s), (宛先:%s), ペイロード: %s", p.Header.Source, p.Header.Destination, p.Payload)
+	fmt.Printf("パケット(送信元: %s), (宛先:%s), ペイロード: %s", p.Header.SourceMac, p.Header.DestinationMac, p.Payload)
 }
 
 func (p *Packet) SetArrived(time float64) {

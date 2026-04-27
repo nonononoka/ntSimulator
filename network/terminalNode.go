@@ -8,14 +8,14 @@ import (
 
 // Nodeの構造体
 type terminalN struct {
-	nodeId  int
-	address string
-	links   []*Link
-	nes     *nteventsched.NtEventSched
+	nodeId     int
+	macAddress string
+	links      []*Link
+	nes        *nteventsched.NtEventSched
 }
 
 func (n *terminalN) Address() string {
-	return n.address
+	return n.macAddress
 }
 
 func (n *terminalN) PrintNode() {
@@ -28,7 +28,7 @@ func (n *terminalN) PrintNode() {
 			connected_nodes = append(connected_nodes, v.node_y.NodeId())
 		}
 	}
-	fmt.Printf("ノード(ID: %v, アドレス: %s), 接続ノード: %v\n", n.nodeId, n.address, connected_nodes)
+	fmt.Printf("ノード(ID: %v, アドレス: %s), 接続ノード: %v\n", n.nodeId, n.macAddress, connected_nodes)
 }
 
 func (n *terminalN) NodeId() int {
@@ -46,10 +46,13 @@ func (n *terminalN) AddLink(link *Link) {
 	n.links = append(n.links, link)
 }
 
-func NewNode(node_id int, address string, nes *nteventsched.NtEventSched) *terminalN {
-	n := &terminalN{nodeId: node_id, address: address, nes: nes}
+func NewNode(node_id int, address string, nes *nteventsched.NtEventSched) (*terminalN, error) {
+	if !isValidMacAddress(address) {
+		return nil, fmt.Errorf("invalid MAC address: %s", address)
+	}
+	n := &terminalN{nodeId: node_id, macAddress: address, nes: nes}
 	nes.AddNode(n)
-	return n
+	return n, nil
 }
 
 func (n *terminalN) receivePacket(p *packet.Packet) {
@@ -57,7 +60,7 @@ func (n *terminalN) receivePacket(p *packet.Packet) {
 		n.nes.LogPacketInfo(p, "lost", n.nodeId)
 		return
 	}
-	if p.Header.Destination == n.address {
+	if p.Header.DestinationMac == n.macAddress {
 		n.nes.LogPacketInfo(p, "arrived", n.nodeId)
 		p.SetArrived(n.nes.CurrentTime)
 	} else {
@@ -68,7 +71,7 @@ func (n *terminalN) receivePacket(p *packet.Packet) {
 
 func (n *terminalN) SendPacket(p *packet.Packet) {
 	n.nes.LogPacketInfo(p, "sent", n.nodeId)
-	if p.Header.Destination == n.address {
+	if p.Header.DestinationMac == n.macAddress {
 		n.receivePacket(p)
 	} else {
 		for _, l := range n.links {
@@ -80,7 +83,7 @@ func (n *terminalN) SendPacket(p *packet.Packet) {
 }
 
 func (n *terminalN) createPacket(destination string, headerSize float64, payloadSize float64) {
-	p := packet.NewPacket(n.address, destination, headerSize, payloadSize, n.nes.CurrentTime)
+	p := packet.NewPacket(n.macAddress, destination, headerSize, payloadSize, n.nes.CurrentTime)
 	n.nes.LogPacketInfo(p, "created", n.nodeId)
 	n.SendPacket(p)
 }

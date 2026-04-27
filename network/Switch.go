@@ -63,7 +63,7 @@ func (s *Switch) receivePacket(p *packet.Packet) {
 }
 
 func (s *Switch) forwardPacket(p *packet.Packet) {
-	destinationAddress := p.Header.Destination
+	destinationAddress := p.Header.DestinationMac
 	if l, ok := s.forwadingTable[destinationAddress]; ok {
 		s.nes.LogPacketInfo(p, "forwarded", s.nodeId)
 		l.enqueuePacket(p, s)
