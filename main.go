@@ -20,4 +20,5 @@ func main() {
 	nes.Visualize()
 	nes.Run()
 	nes.PrintPacketLogs()
+	nes.GenerateSummary()
 }
