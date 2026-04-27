@@ -23,8 +23,18 @@ func newNetworkGraph() *NetworkGraph {
 	}
 }
 
-func (ng *NetworkGraph) AddNode(nodeId int) {
-	ng.G.AddVertex(nodeId)
+type GraphNode interface {
+	NodeId() int
+	NodeColor() string
+}
+
+func (ng *NetworkGraph) AddNode(n GraphNode) {
+	attrs := []func(*graph.VertexProperties){}
+	if color := n.NodeColor(); color != "" {
+		attrs = append(attrs, graph.VertexAttribute("style", "filled"))
+		attrs = append(attrs, graph.VertexAttribute("fillcolor", color))
+	}
+	ng.G.AddVertex(n.NodeId(), attrs...)
 }
 
 func getEdgeWidth(bandwidth float64) float64 {

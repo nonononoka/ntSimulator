@@ -66,7 +66,7 @@ func (nes *NtEventSched) PrintPacketLogs() {
 		fmt.Printf("Packet ID: %v, Src: %s %v -> Dst: %s %v\n",
 			packetId, log.source, log.creationTime, log.destination, log.arrivalTime)
 		for _, event := range log.events {
-			fmt.Printf("time: %v, event: %s\n", event.time, event.event)
+			fmt.Printf("time: %v, event: %s nodeId: %v\n", event.time, event.event, event.nodeId)
 		}
 	}
 }
