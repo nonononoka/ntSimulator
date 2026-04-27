@@ -102,6 +102,16 @@ func (nes *NtEventSched) LogPacketInfo(p *packet.Packet, eventType string, nodeI
 	}
 }
 
+func (nes *NtEventSched) PrintPacketLogs() {
+	for packetId, log := range nes.packetLogs {
+		fmt.Printf("Packet ID: %v, Src: %s %v -> Dst: %s %v\n",
+			packetId, log.source, log.creationTime, log.destination, log.arrivalTime)
+		for _, event := range log.events {
+			fmt.Printf("time: %v, event: %s\n", event.time, event.event)
+		}
+	}
+}
+
 // network graph関連
 type NetworkGraph struct {
 	G graph.Graph[int, int]

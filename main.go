@@ -19,4 +19,5 @@ func main() {
 	n1.SetTraffic("00:02", 1000, 1.0, 10.0, float64(headerSize), float64(payloadSize), 1.0)
 	nes.Visualize()
 	nes.Run()
+	nes.PrintPacketLogs()
 }
