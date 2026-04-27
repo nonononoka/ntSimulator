@@ -1,15 +1,15 @@
 package main
 
 import (
-	"nt-simulator/node"
+	"nt-simulator/network"
 	"nt-simulator/nteventsched"
 )
 
 func main() {
 	nes := nteventsched.NewNtEventSched(true, true)
-	n1 := node.NewNode(1, "00:01", nes)
-	n2 := node.NewNode(2, "00:02", nes)
-	l1 := node.NewLink(n1, n2, 10000, 0.001, 0.6, nes)
+	n1 := network.NewNode(1, "00:01", nes)
+	n2 := network.NewNode(2, "00:02", nes)
+	l1 := network.NewLink(n1, n2, 10000, 0.001, 0.6, nes)
 	n1.PrintNode()
 	n2.PrintNode()
 	l1.PrintLink()
