@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"fmt"
 	"math"
+	"nt-simulator/packet"
 	"os"
 	"os/exec"
 
@@ -49,6 +50,7 @@ type NtEventSched struct {
 	eventId     int
 	logEnabled  bool
 	verbose     bool
+	packetLogs  map[string]*packetLog
 	*NetworkGraph
 }
 
@@ -59,14 +61,49 @@ func (nes *NtEventSched) Run() {
 		eventTime := event.eventTime
 		callback := event.callback
 		args := event.args
-		callback(args...)
 		nes.CurrentTime = eventTime
+		callback(args...)
 	}
 }
 
 func (nes *NtEventSched) ScheduleEvent(eventTime int, callback func(args ...any), args ...any) {
 	heap.Push(&nes.events, &Event{eventTime: eventTime, eventId: nes.eventId, callback: callback, args: args})
 	nes.eventId += 1
+}
+
+func (nes *NtEventSched) LogPacketInfo(p *packet.Packet, eventType string, nodeId int) {
+	if !nes.logEnabled {
+		return
+	}
+	_, ok := nes.packetLogs[p.Id]
+	if !ok {
+		nes.packetLogs[p.Id] = &packetLog{
+			source:       p.Header.Source,
+			destination:  p.Header.Destination,
+			size:         p.Size,
+			creationTime: p.CreationTime(),
+			arrivalTime:  p.ArrivalTime(),
+		}
+	}
+
+	if eventType == "arrived" {
+		nes.packetLogs[p.Id].arrivalTime = nes.CurrentTime
+	}
+
+	eventInfo := packetEvent{
+		time:     nes.CurrentTime,
+		event:    eventType,
+		nodeId:   nodeId,
+		packetId: p.Id,
+		src:      p.Header.Source,
+		dst:      p.Header.Destination,
+	}
+	nes.packetLogs[p.Id].events = append(nes.packetLogs[p.Id].events, &eventInfo)
+
+	if nes.verbose {
+		fmt.Printf("time: %v, node: %v, event: %s, packet: %v, src: %s, dst: %s\n",
+			nes.CurrentTime, nodeId, eventType, p.Id, p.Header.Source, p.Header.Destination)
+	}
 }
 
 // network graph関連
@@ -82,10 +119,31 @@ func newNetworkGraph() *NetworkGraph {
 	}
 }
 
-// heap.Initは既存の要素をヒープ順に並べ直すためのもので，空スライスならそのままで動く
-func NewNtEventSched() *NtEventSched {
+type packetEvent struct {
+	time     int
+	event    string
+	nodeId   int
+	packetId string
+	src      string
+	dst      string
+}
+
+type packetLog struct {
+	source       string
+	destination  string
+	size         float64
+	creationTime int
+	arrivalTime  int
+	events       []*packetEvent
+}
+
+// heap.Initは既存の要素をヒープ順に並べ直すためのもので，nilスライスならそのままで動く．
+func NewNtEventSched(logEnabled bool, verbose bool) *NtEventSched {
 	sched := &NtEventSched{
 		NetworkGraph: newNetworkGraph(),
+		logEnabled:   logEnabled,
+		verbose:      verbose,
+		packetLogs:   make(map[string]*packetLog),
 	}
 	return sched
 }

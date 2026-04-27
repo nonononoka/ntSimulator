@@ -8,35 +8,6 @@ import (
 	"nt-simulator/packet"
 )
 
-// linkのqueueに突っ込むパケットとか
-type PacketWithQueueTime struct {
-	dequeTime int
-	packet    *packet.Packet
-	fromNode  *N
-}
-
-type LinkQueue []*PacketWithQueueTime
-
-func (lq LinkQueue) Len() int { return len(lq) }
-
-func (lq LinkQueue) Less(i, j int) bool {
-	return lq[i].dequeTime < lq[j].dequeTime
-}
-
-func (lq LinkQueue) Swap(i, j int) { lq[i], lq[j] = lq[j], lq[i] }
-
-func (lq *LinkQueue) Push(x any) {
-	*lq = append(*lq, x.(*PacketWithQueueTime))
-}
-
-func (lq *LinkQueue) Pop() any {
-	old := *lq
-	n := len(old)
-	item := old[n-1]
-	*lq = old[:n-1]
-	return item
-}
-
 // Nodeの構造体
 type N struct {
 	nodeId  int
@@ -77,6 +48,7 @@ func (n *N) addLink(link *Link) {
 }
 
 func (n *N) SendPacket(p *packet.Packet) {
+	n.nes.LogPacketInfo(p, "sent", n.nodeId)
 	if p.Header.Destination == n.address {
 		n.receivePacket(p)
 	} else {
@@ -89,7 +61,7 @@ func (n *N) SendPacket(p *packet.Packet) {
 				nextNodeId = l.node_y.nodeId
 			}
 			fmt.Printf("ノード%vからノード%vにパケットを転送\n", n.nodeId, nextNodeId)
-			l.transferPacket(from_node)
+			l.enqueuePacket(p, from_node)
 			break
 		}
 	}
@@ -97,30 +69,33 @@ func (n *N) SendPacket(p *packet.Packet) {
 
 func (n *N) receivePacket(p *packet.Packet) {
 	if p.ArrivalTime() == -1 {
+		n.nes.LogPacketInfo(p, "lost", n.nodeId)
 		return
 	}
-	fmt.Printf("ノード%vがパケットを受信: %s\n", n.nodeId, p.Payload)
 	if p.Header.Destination == n.address {
-		p.SetArriced(n.nes.CurrentTime)
+		n.nes.LogPacketInfo(p, "arrived", n.nodeId)
+		p.SetArrived(n.nes.CurrentTime)
 	} else {
+		n.nes.LogPacketInfo(p, "received", n.nodeId)
 		// 宛先が自分自身にない場合
 	}
 }
 
 func (n *N) createPacket(destination string, headerSize float64, payloadSize float64) {
-	p := packet.NewPacket(n.address, destination, headerSize, payloadSize, n.nes)
-	// TODO：log_packet_info
+	p := packet.NewPacket(n.address, destination, headerSize, payloadSize, n.nes.CurrentTime)
+	n.nes.LogPacketInfo(p, "created", n.nodeId)
 	n.SendPacket(p)
 }
 
 func (n *N) SetTraffic(destination string, bitrate float64, startTime int, duration int, headerSize float64, payloadSize float64, burstiness float64) {
 	endTime := startTime + duration
 	packetSize := headerSize + payloadSize
+	// burstinessはよくわからん
+	// このintervalで送れば，理論上指定したbitrateになる．
 	interval := int((packetSize * 8) / bitrate * burstiness)
 
 	// 全部のcreatePacketのスケジュールを最初にしておく
 	for t := startTime; t < endTime; t += interval {
-		t := t
 		n.nes.ScheduleEvent(t, func(args ...any) {
 			n.createPacket(destination, headerSize, payloadSize)
 		})
@@ -128,6 +103,36 @@ func (n *N) SetTraffic(destination string, bitrate float64, startTime int, durat
 }
 
 // Linkの構造体
+
+// linkのqueueに突っ込むパケットとか
+type PacketWithQueueTime struct {
+	dequeTime int
+	packet    *packet.Packet
+	fromNode  *N
+}
+
+type LinkQueue []*PacketWithQueueTime
+
+func (lq LinkQueue) Len() int { return len(lq) }
+
+func (lq LinkQueue) Less(i, j int) bool {
+	return lq[i].dequeTime < lq[j].dequeTime
+}
+
+func (lq LinkQueue) Swap(i, j int) { lq[i], lq[j] = lq[j], lq[i] }
+
+func (lq *LinkQueue) Push(x any) {
+	*lq = append(*lq, x.(*PacketWithQueueTime))
+}
+
+func (lq *LinkQueue) Pop() any {
+	old := *lq
+	n := len(old)
+	item := old[n-1]
+	*lq = old[:n-1]
+	return item
+}
+
 type Link struct {
 	node_x             *N
 	node_y             *N
@@ -155,25 +160,25 @@ func (l *Link) PrintLink() {
 
 // リンクを通してfrom_nodeからto_nodeにパケットを転送する関数
 func (l *Link) transferPacket(from_node *N) {
-	var queue LinkQueue
+	var queue *LinkQueue
 	var nextNode *N
 	if l.node_x.nodeId != from_node.nodeId {
-		queue = l.packetQueueYX
+		queue = &l.packetQueueYX
 		nextNode = l.node_x
 	} else {
-		queue = l.packetQueueXY
+		queue = &l.packetQueueXY
 		nextNode = l.node_y
 	}
 
 	if queue.Len() != 0 {
-		item := heap.Pop(&queue).(*PacketWithQueueTime)
+		item := heap.Pop(queue).(*PacketWithQueueTime)
 		dequeTime := item.dequeTime
 		p := item.packet
-		packetTransferTIme := int((p.Size * 8) / l.bandwidth)
+		packetTransferTime := int((p.Size * 8) / l.bandwidth)
 
 		// パケットロス
 		if rand.Intn(100) < int(l.packet_loss) {
-			p.SetArriced(-1)
+			p.SetArrived(-1)
 		}
 
 		// currentTime + delayの時間から，nextNodeがpacketを受け取り始める
@@ -182,33 +187,33 @@ func (l *Link) transferPacket(from_node *N) {
 		}, p)
 
 		// dequeTime(currentTime) + packetTransferTimeで，完全にpacketをlinkに流し終えるので，queueの待ち時間から引ける．
-		l.nes.ScheduleEvent(dequeTime+int(packetTransferTIme), func(args ...any) {
+		l.nes.ScheduleEvent(dequeTime+int(packetTransferTime), func(args ...any) {
 			l.subtractFromQueueTime(args[0].(*N), args[1].(int))
-		}, from_node, dequeTime+packetTransferTIme)
-	}
+		}, from_node, dequeTime+packetTransferTime)
 
-	if queue.Len() != 0 { // 次のパケットがある場合
-		nextPacket := queue[0]
-		l.nes.ScheduleEvent(nextPacket.dequeTime, func(args ...any) {
-			l.transferPacket(args[0].(*N))
-		}, nextPacket)
+		if queue.Len() != 0 { // 次のパケットがある場合
+			nextPacket := (*queue)[0]
+			l.nes.ScheduleEvent(nextPacket.dequeTime, func(args ...any) {
+				l.transferPacket(args[0].(*N))
+			}, nextPacket)
+		}
 	}
 }
 
 func (l *Link) enqueuePacket(pkt *packet.Packet, from_node *N) {
 	var currentQueueTime int
-	var queue LinkQueue
+	var queue *LinkQueue
 	if l.node_x.nodeId != from_node.nodeId {
 		currentQueueTime = l.currentQueueTimeYX
-		queue = l.packetQueueYX
+		queue = &l.packetQueueYX
 	} else {
 		currentQueueTime = l.currentQueueTimeXY
-		queue = l.packetQueueXY
+		queue = &l.packetQueueXY
 	}
 
 	packetTransferTime := int(pkt.Size*8) / int(l.bandwidth)
 	dequeTime := l.nes.CurrentTime + currentQueueTime
-	heap.Push(&queue, &PacketWithQueueTime{dequeTime: dequeTime, packet: pkt, fromNode: from_node})
+	heap.Push(queue, &PacketWithQueueTime{dequeTime: dequeTime, packet: pkt, fromNode: from_node})
 	l.addToQueueTime(from_node, packetTransferTime)
 
 	if queue.Len() == 1 {

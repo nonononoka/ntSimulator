@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"nt-simulator/nteventsched"
-
 	"github.com/google/uuid"
 )
 
@@ -23,7 +21,7 @@ type Packet struct {
 	arrivalTime  int
 }
 
-func NewPacket(s string, d string, header_size float64, payload_size float64, nes *nteventsched.NtEventSched) *Packet {
+func NewPacket(s string, d string, header_size float64, payload_size float64, currentTime int) *Packet {
 	p := strings.Repeat("X", int(payload_size))
 	size := header_size + payload_size
 	return &Packet{
@@ -34,7 +32,7 @@ func NewPacket(s string, d string, header_size float64, payload_size float64, ne
 		Payload:      p,
 		Size:         size,
 		Id:           uuid.New().String(),
-		creationTime: nes.CurrentTime,
+		creationTime: currentTime,
 	}
 }
 
@@ -42,10 +40,14 @@ func (p *Packet) PrintPacket() {
 	fmt.Printf("パケット(送信元: %s), (宛先:%s), ペイロード: %s", p.Header.Source, p.Header.Destination, p.Payload)
 }
 
-func (p *Packet) SetArriced(time int) {
+func (p *Packet) SetArrived(time int) {
 	p.arrivalTime = time
 }
 
 func (p *Packet) ArrivalTime() int {
 	return p.arrivalTime
+}
+
+func (p *Packet) CreationTime() int {
+	return p.creationTime
 }
