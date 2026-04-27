@@ -170,7 +170,7 @@ func (l *Link) transferPacket(from_node *N) {
 		packetTransferTime := (p.Size * 8) / l.bandwidth
 
 		// パケットロス
-		if rand.Intn(100) < int(l.packet_loss) {
+		if rand.Intn(100) < int(l.packet_loss*100) {
 			p.SetArrived(-1)
 		}
 
@@ -188,7 +188,7 @@ func (l *Link) transferPacket(from_node *N) {
 			nextPacket := (*queue)[0]
 			l.nes.ScheduleEvent(nextPacket.dequeTime, func(args ...any) {
 				l.transferPacket(args[0].(*N))
-			}, nextPacket)
+			}, from_node)
 		}
 	}
 }
