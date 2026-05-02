@@ -3,6 +3,7 @@ package network
 import (
 	"container/heap"
 	"fmt"
+	"math"
 	"math/rand"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
@@ -87,7 +88,7 @@ func (l *Link) transferPacket(from_node node) {
 
 		// currentTime + delayの時間から，nextNodeがpacketを受け取り始める
 		l.nes.ScheduleEvent(l.nes.CurrentTime+l.delay, func(args ...any) {
-			nextNode.receivePacket(args[0].(*packet.Packet), l)
+			nextNode.receivePacket(args[0].(packet.PacketI), l)
 		}, p)
 
 		// dequeTime(currentTime) + packetTransferTimeで，完全にpacketをlinkに流し終えるので，queueの待ち時間から引ける．
@@ -141,4 +142,15 @@ func (l *Link) subtractFromQueueTime(from_node node, packetTransferTime float64)
 	} else {
 		l.currentQueueTimeXY -= packetTransferTime
 	}
+}
+
+func (l *Link) isLinkBetweenSwitches() bool {
+	_, okX := l.node_x.(*Switch)
+	_, okY := l.node_y.(*Switch)
+	return okX && okY
+}
+
+func (l *Link) getLinkCost() float64 {
+	minCost := 0.000000001
+	return math.Max(minCost, 1.0/l.bandwidth)
 }

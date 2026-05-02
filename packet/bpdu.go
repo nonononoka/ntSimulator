@@ -6,9 +6,9 @@ import (
 )
 
 type BPDUPayload struct {
-	RootID   int `json:"rootID"`
-	BridgeID int `json:"bridgeID"`
-	PathCost int `json:"pathCost"`
+	RootID   int     `json:"rootID"`
+	BridgeID int     `json:"bridgeID"`
+	PathCost float64 `json:"pathCost"`
 }
 
 // Packetをembedding．こうすることで自動的にPacketI interfaceを満たす
@@ -16,7 +16,13 @@ type BPDU struct {
 	Packet
 }
 
-func NewBPDU(s string, d string, currentTime float64, rootID int, bridgeID int, pathCost int) *BPDU {
+func (b *BPDU) ParsePayload() (BPDUPayload, error) {
+	var bp BPDUPayload
+	err := json.Unmarshal([]byte(b.Payload), &bp)
+	return bp, err
+}
+
+func NewBPDU(s string, d string, currentTime float64, rootID int, bridgeID int, pathCost float64) *BPDU {
 	b, err := json.Marshal(BPDUPayload{RootID: rootID, BridgeID: bridgeID, PathCost: pathCost})
 	if err != nil {
 		panic(fmt.Sprintf("BPDU payload marshal error: %v", err))

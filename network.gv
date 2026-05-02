@@ -1,6 +1,21 @@
 strict graph {
 
 
+	"1" [  weight=0 ];
+
+	"1" -- "5" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00",  weight=0 ];
+
+	"2" [  weight=0 ];
+
+	"2" -- "5" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00",  weight=0 ];
+
+	"3" [  weight=0 ];
+
+	"3" -- "6" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00",  weight=0 ];
+
 	"4" [  weight=0 ];
 
 	"4" -- "6" [ color="green", label="0.1 Mbps 0.001 s
@@ -26,21 +41,6 @@ strict graph {
 ", penwidth="5.00",  weight=0 ];
 
 	"6" -- "4" [ color="green", label="0.1 Mbps 0.001 s
-", penwidth="5.00",  weight=0 ];
-
-	"1" [  weight=0 ];
-
-	"1" -- "5" [ color="green", label="0.1 Mbps 0.001 s
-", penwidth="5.00",  weight=0 ];
-
-	"2" [  weight=0 ];
-
-	"2" -- "5" [ color="green", label="0.1 Mbps 0.001 s
-", penwidth="5.00",  weight=0 ];
-
-	"3" [  weight=0 ];
-
-	"3" -- "6" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00",  weight=0 ];
 
 }
