@@ -47,26 +47,41 @@ func (s *Switch) PrintNode() {
 	fmt.Printf("スイッチ ノード(ID: %v\n", s.nodeId)
 }
 
+func (s *Switch) PrintForwadingTable() {
+	for macAddress, l := range s.forwadingTable {
+		fmt.Printf("MACアドレス: %s, リンク先ノード %v <-> %v\n", macAddress, l.node_x.NodeId(), l.node_y.NodeId())
+	}
+}
+
 func (s *Switch) UpdateForwardingTable(destionationAddress string, link *Link) {
 	// 宛先アドレスとその宛先へのパケットを転送するためのリンク
 	s.forwadingTable[destionationAddress] = link
 }
 
 // スイッチがパケットを受信したとき
-func (s *Switch) receivePacket(p *packet.Packet) {
+func (s *Switch) receivePacket(p *packet.Packet, l *Link) {
 	if p.ArrivalTime() == -1 {
 		s.nes.LogPacketInfo(p, "lost", s.nodeId)
 		return
 	}
 	s.nes.LogPacketInfo(p, "received", s.nodeId)
-	s.forwardPacket(p)
+	sourceMacAddress := p.Header.SourceMac
+	s.UpdateForwardingTable(sourceMacAddress, l)
+	s.forwardPacket(p, l)
 }
 
-func (s *Switch) forwardPacket(p *packet.Packet) {
+func (s *Switch) forwardPacket(p *packet.Packet, receivedLink *Link) {
 	destinationAddress := p.Header.DestinationMac
 	if l, ok := s.forwadingTable[destinationAddress]; ok {
 		s.nes.LogPacketInfo(p, "forwarded", s.nodeId)
 		l.enqueuePacket(p, s)
+	} else {
+		// 宛先が不明の場合，ブロードキャスト
+		for _, link := range s.links {
+			if link != receivedLink {
+				s.nes.LogPacketInfo(p, "broadcast", s.nodeId)
+				link.enqueuePacket(p, s)
+			}
+		}
 	}
-	// 宛先がテーブルにない場合の処理は未実装
 }

@@ -87,7 +87,7 @@ func (l *Link) transferPacket(from_node node) {
 
 		// currentTime + delayの時間から，nextNodeがpacketを受け取り始める
 		l.nes.ScheduleEvent(l.nes.CurrentTime+l.delay, func(args ...any) {
-			nextNode.receivePacket(args[0].(*packet.Packet))
+			nextNode.receivePacket(args[0].(*packet.Packet), l)
 		}, p)
 
 		// dequeTime(currentTime) + packetTransferTimeで，完全にpacketをlinkに流し終えるので，queueの待ち時間から引ける．

@@ -10,7 +10,7 @@ type node interface {
 	PrintNode()
 	NodeId() int
 	AddLink(link *Link)
-	receivePacket(p *packet.Packet)
+	receivePacket(p *packet.Packet, l *Link)
 }
 
 func isValidMacAddress(macAddress string) bool {

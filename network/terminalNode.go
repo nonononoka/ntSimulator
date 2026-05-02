@@ -55,7 +55,7 @@ func NewNode(node_id int, address string, nes *nteventsched.NtEventSched) (*term
 	return n, nil
 }
 
-func (n *terminalN) receivePacket(p *packet.Packet) {
+func (n *terminalN) receivePacket(p *packet.Packet, l *Link) {
 	if p.ArrivalTime() == -1 {
 		n.nes.LogPacketInfo(p, "lost", n.nodeId)
 		return
@@ -72,7 +72,7 @@ func (n *terminalN) receivePacket(p *packet.Packet) {
 func (n *terminalN) SendPacket(p *packet.Packet) {
 	n.nes.LogPacketInfo(p, "sent", n.nodeId)
 	if p.Header.DestinationMac == n.macAddress {
-		n.receivePacket(p)
+		n.receivePacket(p, nil)
 	} else {
 		for _, l := range n.links {
 			var from_node *terminalN = n
