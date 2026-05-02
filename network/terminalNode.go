@@ -55,12 +55,12 @@ func NewNode(node_id int, address string, nes *nteventsched.NtEventSched) (*term
 	return n, nil
 }
 
-func (n *terminalN) receivePacket(p *packet.Packet, l *Link) {
+func (n *terminalN) receivePacket(p packet.PacketI, l *Link) {
 	if p.ArrivalTime() == -1 {
 		n.nes.LogPacketInfo(p, "lost", n.nodeId)
 		return
 	}
-	if p.Header.DestinationMac == n.macAddress {
+	if p.GetHeader().DestinationMac == n.macAddress {
 		n.nes.LogPacketInfo(p, "arrived", n.nodeId)
 		p.SetArrived(n.nes.CurrentTime)
 	} else {

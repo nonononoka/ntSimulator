@@ -24,40 +24,40 @@ type packetLog struct {
 	events       []*packetEvent
 }
 
-func (nes *NtEventSched) LogPacketInfo(p *packet.Packet, eventType string, nodeId int) {
+func (nes *NtEventSched) LogPacketInfo(p packet.PacketI, eventType string, nodeId int) {
 	if !nes.logEnabled {
 		return
 	}
-	_, ok := nes.packetLogs[p.Id]
+	_, ok := nes.packetLogs[p.GetId()]
 	if !ok {
-		nes.packetLogs[p.Id] = &packetLog{
-			source:       p.Header.SourceMac,
-			destination:  p.Header.DestinationMac,
-			size:         p.Size,
+		nes.packetLogs[p.GetId()] = &packetLog{
+			source:       p.GetHeader().SourceMac,
+			destination:  p.GetHeader().DestinationMac,
+			size:         p.GetSize(),
 			creationTime: p.CreationTime(),
 			arrivalTime:  p.ArrivalTime(),
 		}
 	}
 
 	if eventType == "arrived" {
-		nes.packetLogs[p.Id].arrivalTime = nes.CurrentTime
+		nes.packetLogs[p.GetId()].arrivalTime = nes.CurrentTime
 	} else if eventType == "lost" {
-		nes.packetLogs[p.Id].arrivalTime = -1
+		nes.packetLogs[p.GetId()].arrivalTime = -1
 	}
 
 	eventInfo := packetEvent{
 		time:     nes.CurrentTime,
 		event:    eventType,
 		nodeId:   nodeId,
-		packetId: p.Id,
-		src:      p.Header.SourceMac,
-		dst:      p.Header.DestinationMac,
+		packetId: p.GetId(),
+		src:      p.GetHeader().SourceMac,
+		dst:      p.GetHeader().DestinationMac,
 	}
-	nes.packetLogs[p.Id].events = append(nes.packetLogs[p.Id].events, &eventInfo)
+	nes.packetLogs[p.GetId()].events = append(nes.packetLogs[p.GetId()].events, &eventInfo)
 
 	if nes.verbose {
 		fmt.Printf("time: %v, node: %v, event: %s, packet: %v, src: %s, dst: %s\n",
-			nes.CurrentTime, nodeId, eventType, p.Id, p.Header.SourceMac, p.Header.DestinationMac)
+			nes.CurrentTime, nodeId, eventType, p.GetId(), p.GetHeader().SourceMac, p.GetHeader().DestinationMac)
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 // linkのqueueに突っ込むパケットとか
 type PacketWithQueueTime struct {
 	dequeTime float64
-	packet    *packet.Packet
+	packet    packet.PacketI
 	fromNode  node
 }
 
@@ -78,7 +78,7 @@ func (l *Link) transferPacket(from_node node) {
 		item := heap.Pop(queue).(*PacketWithQueueTime)
 		dequeTime := item.dequeTime
 		p := item.packet
-		packetTransferTime := (p.Size * 8) / l.bandwidth
+		packetTransferTime := (p.GetSize() * 8) / l.bandwidth
 
 		// パケットロス
 		if rand.Intn(100) < int(l.packet_loss*100) {
@@ -104,7 +104,7 @@ func (l *Link) transferPacket(from_node node) {
 	}
 }
 
-func (l *Link) enqueuePacket(pkt *packet.Packet, from_node node) {
+func (l *Link) enqueuePacket(pkt packet.PacketI, from_node node) {
 	var currentQueueTime float64
 	var queue *LinkQueue
 	if l.node_x.NodeId() != from_node.NodeId() {
@@ -115,7 +115,7 @@ func (l *Link) enqueuePacket(pkt *packet.Packet, from_node node) {
 		queue = &l.packetQueueXY
 	}
 
-	packetTransferTime := pkt.Size * 8 / l.bandwidth
+	packetTransferTime := pkt.GetSize() * 8 / l.bandwidth
 	dequeTime := l.nes.CurrentTime + currentQueueTime
 	heap.Push(queue, &PacketWithQueueTime{dequeTime: dequeTime, packet: pkt, fromNode: from_node})
 	l.addToQueueTime(from_node, packetTransferTime)

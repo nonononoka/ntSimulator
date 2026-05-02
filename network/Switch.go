@@ -59,19 +59,19 @@ func (s *Switch) UpdateForwardingTable(destionationAddress string, link *Link) {
 }
 
 // スイッチがパケットを受信したとき
-func (s *Switch) receivePacket(p *packet.Packet, l *Link) {
+func (s *Switch) receivePacket(p packet.PacketI, l *Link) {
 	if p.ArrivalTime() == -1 {
 		s.nes.LogPacketInfo(p, "lost", s.nodeId)
 		return
 	}
 	s.nes.LogPacketInfo(p, "received", s.nodeId)
-	sourceMacAddress := p.Header.SourceMac
+	sourceMacAddress := p.GetHeader().SourceMac
 	s.UpdateForwardingTable(sourceMacAddress, l)
 	s.forwardPacket(p, l)
 }
 
-func (s *Switch) forwardPacket(p *packet.Packet, receivedLink *Link) {
-	destinationAddress := p.Header.DestinationMac
+func (s *Switch) forwardPacket(p packet.PacketI, receivedLink *Link) {
+	destinationAddress := p.GetHeader().DestinationMac
 	if l, ok := s.forwadingTable[destinationAddress]; ok {
 		s.nes.LogPacketInfo(p, "forwarded", s.nodeId)
 		l.enqueuePacket(p, s)

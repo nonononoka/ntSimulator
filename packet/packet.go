@@ -12,6 +12,16 @@ type Header struct {
 	DestinationMac string
 }
 
+type PacketI interface {
+	SetArrived(time float64)
+	ArrivalTime() float64
+	CreationTime() float64
+	PrintPacket()
+	GetHeader() Header
+	GetSize() float64
+	GetId() string
+}
+
 type Packet struct {
 	Header       Header
 	Payload      string
@@ -23,6 +33,20 @@ type Packet struct {
 
 func NewPacket(s string, d string, header_size float64, payload_size float64, currentTime float64) *Packet {
 	p := strings.Repeat("X", int(payload_size))
+	size := header_size + payload_size
+	return &Packet{
+		Header: Header{
+			SourceMac:      s,
+			DestinationMac: d,
+		},
+		Payload:      p,
+		Size:         size,
+		Id:           uuid.New().String(),
+		creationTime: currentTime,
+	}
+}
+
+func NewPacketWithPayload(s string, d string, header_size float64, payload_size float64, currentTime float64, p string) *Packet {
 	size := header_size + payload_size
 	return &Packet{
 		Header: Header{
@@ -51,3 +75,7 @@ func (p *Packet) ArrivalTime() float64 {
 func (p *Packet) CreationTime() float64 {
 	return p.creationTime
 }
+
+func (p *Packet) GetHeader() Header { return p.Header }
+func (p *Packet) GetSize() float64  { return p.Size }
+func (p *Packet) GetId() string     { return p.Id }
