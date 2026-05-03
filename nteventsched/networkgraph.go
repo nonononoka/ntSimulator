@@ -58,6 +58,10 @@ func (ng *NetworkGraph) AddEdge(fromNodeId int, toNodeId int, edgeLabel string, 
 	))
 }
 
+func (ng *NetworkGraph) UpdateEdgeStyle(fromNodeId int, toNodeId int, style string) {
+	ng.G.UpdateEdge(fromNodeId, toNodeId, graph.EdgeAttribute("style", style))
+}
+
 func (ng NetworkGraph) Visualize() error {
 	file, err := os.Create("network.gv")
 	if err != nil {

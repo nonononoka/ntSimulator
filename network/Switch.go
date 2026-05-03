@@ -150,8 +150,10 @@ func (s *Switch) updateLinkStates(receivedLink *Link, receivedBPDUPathCost float
 		for _, l := range s.links {
 			if l == bestLink || !l.isLinkBetweenSwitches() {
 				s.linkStates[l] = "forwarding"
+				s.nes.UpdateEdgeStyle(l.node_x.NodeId(), l.node_y.NodeId(), "")
 			} else {
 				s.linkStates[l] = "blocking"
+				s.nes.UpdateEdgeStyle(l.node_x.NodeId(), l.node_y.NodeId(), "dashed")
 			}
 		}
 
