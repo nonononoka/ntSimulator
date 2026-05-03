@@ -2,14 +2,23 @@ package packet
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 )
 
+type FragmentFlags struct {
+	OriginalDataId string
+	MoreFragment   bool
+}
+
 type Header struct {
 	SourceMac      string
 	DestinationMac string
+	SourceIp       string
+	DestIp         string
+	ttl            int
+	FragmentFlags  FragmentFlags
+	FragmentOffset int
 }
 
 type PacketI interface {
@@ -18,26 +27,31 @@ type PacketI interface {
 	CreationTime() float64
 	PrintPacket()
 	GetHeader() Header
-	GetSize() float64
+	GetSize() int
 	GetId() string
+	GetPayload() string
 }
 
 type Packet struct {
 	Header       Header
 	Payload      string
-	Size         float64
+	Size         int
 	Id           string
 	creationTime float64
 	arrivalTime  float64
 }
 
-func NewPacket(s string, d string, header_size float64, payload_size float64, currentTime float64) *Packet {
-	p := strings.Repeat("X", int(payload_size))
+func NewFragment(s string, d string, sourceip string, destip string, ttl int, header_size int, payload_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string) *Packet {
 	size := header_size + payload_size
 	return &Packet{
 		Header: Header{
 			SourceMac:      s,
 			DestinationMac: d,
+			SourceIp:       sourceip,
+			DestIp:         destip,
+			ttl:            ttl,
+			FragmentFlags:  FragmentFlags{OriginalDataId: originalDataId, MoreFragment: morefragment},
+			FragmentOffset: offset,
 		},
 		Payload:      p,
 		Size:         size,
@@ -46,12 +60,14 @@ func NewPacket(s string, d string, header_size float64, payload_size float64, cu
 	}
 }
 
-func NewPacketWithPayload(s string, d string, header_size float64, payload_size float64, currentTime float64, p string) *Packet {
+func NewPacket(s string, d string, sourceip string, destip string, ttl int, header_size int, payload_size int, currentTime float64, p string) *Packet {
 	size := header_size + payload_size
 	return &Packet{
 		Header: Header{
 			SourceMac:      s,
 			DestinationMac: d,
+			SourceIp:       sourceip,
+			DestIp:         destip,
 		},
 		Payload:      p,
 		Size:         size,
@@ -76,6 +92,7 @@ func (p *Packet) CreationTime() float64 {
 	return p.creationTime
 }
 
-func (p *Packet) GetHeader() Header { return p.Header }
-func (p *Packet) GetSize() float64  { return p.Size }
-func (p *Packet) GetId() string     { return p.Id }
+func (p *Packet) GetHeader() Header  { return p.Header }
+func (p *Packet) GetSize() int       { return p.Size }
+func (p *Packet) GetId() string      { return p.Id }
+func (p *Packet) GetPayload() string { return p.Payload }

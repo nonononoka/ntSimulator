@@ -19,11 +19,11 @@ type PacketWithQueueTime struct {
 type LinkQueue []*PacketWithQueueTime
 
 type Link struct {
-	node_x             node
-	node_y             node
+	nodeX              node
+	nodeY              node
 	bandwidth          float64
 	delay              float64
-	packet_loss        float64
+	packetLoss         float64
 	nes                *nteventsched.NtEventSched
 	packetQueueXY      LinkQueue
 	packetQueueYX      LinkQueue
@@ -51,38 +51,38 @@ func (lq *LinkQueue) Pop() any {
 	return item
 }
 
-func NewLink(node_x node, node_y node, bandwidth float64, delay float64, packet_loss float64, nes *nteventsched.NtEventSched) *Link {
-	nes.AddEdge(node_x.NodeId(), node_y.NodeId(), fmt.Sprintf("%v Mbps %v s\n", bandwidth/1000000, delay), bandwidth, delay)
-	l := Link{node_x: node_x, node_y: node_y, bandwidth: bandwidth, delay: delay, packet_loss: packet_loss, nes: nes}
-	node_x.AddLink(&l)
-	node_y.AddLink(&l)
+func NewLink(nodeX node, nodeY node, bandwidth float64, delay float64, packetLoss float64, nes *nteventsched.NtEventSched) *Link {
+	nes.AddEdge(nodeX.NodeId(), nodeY.NodeId(), fmt.Sprintf("%v Mbps %v s\n", bandwidth/1000000, delay), bandwidth, delay)
+	l := Link{nodeX: nodeX, nodeY: nodeY, bandwidth: bandwidth, delay: delay, packetLoss: packetLoss, nes: nes}
+	nodeX.AddLink(&l)
+	nodeY.AddLink(&l)
 	return &l
 }
 
 func (l *Link) PrintLink() {
-	fmt.Printf("%v <-> %v 帯域幅: %v 遅延: %v パケットロス率：%v\n", l.node_x.NodeId(), l.node_y.NodeId(), l.bandwidth, l.delay, l.packet_loss)
+	fmt.Printf("%v <-> %v 帯域幅: %v 遅延: %v パケットロス率：%v\n", l.nodeX.NodeId(), l.nodeY.NodeId(), l.bandwidth, l.delay, l.packetLoss)
 }
 
 // リンクを通してfrom_nodeからto_nodeにパケットを転送する関数
 func (l *Link) transferPacket(from_node node) {
 	var queue *LinkQueue
 	var nextNode node
-	if l.node_x.NodeId() != from_node.NodeId() {
+	if l.nodeX.NodeId() != from_node.NodeId() {
 		queue = &l.packetQueueYX
-		nextNode = l.node_x
+		nextNode = l.nodeX
 	} else {
 		queue = &l.packetQueueXY
-		nextNode = l.node_y
+		nextNode = l.nodeY
 	}
 
 	if queue.Len() != 0 {
 		item := heap.Pop(queue).(*PacketWithQueueTime)
 		dequeTime := item.dequeTime
 		p := item.packet
-		packetTransferTime := (p.GetSize() * 8) / l.bandwidth
+		packetTransferTime := float64(p.GetSize()*8) / l.bandwidth
 
 		// パケットロス
-		if rand.Intn(100) < int(l.packet_loss*100) {
+		if rand.Intn(100) < int(l.packetLoss*100) {
 			p.SetArrived(-1)
 		}
 
@@ -108,7 +108,7 @@ func (l *Link) transferPacket(from_node node) {
 func (l *Link) enqueuePacket(pkt packet.PacketI, from_node node) {
 	var currentQueueTime float64
 	var queue *LinkQueue
-	if l.node_x.NodeId() != from_node.NodeId() {
+	if l.nodeX.NodeId() != from_node.NodeId() {
 		currentQueueTime = l.currentQueueTimeYX
 		queue = &l.packetQueueYX
 	} else {
@@ -116,7 +116,7 @@ func (l *Link) enqueuePacket(pkt packet.PacketI, from_node node) {
 		queue = &l.packetQueueXY
 	}
 
-	packetTransferTime := pkt.GetSize() * 8 / l.bandwidth
+	packetTransferTime := float64(pkt.GetSize()*8) / l.bandwidth
 	dequeTime := l.nes.CurrentTime + currentQueueTime
 	heap.Push(queue, &PacketWithQueueTime{dequeTime: dequeTime, packet: pkt, fromNode: from_node})
 	l.addToQueueTime(from_node, packetTransferTime)
@@ -129,7 +129,7 @@ func (l *Link) enqueuePacket(pkt packet.PacketI, from_node node) {
 }
 
 func (l *Link) addToQueueTime(from_node node, packetTransferTime float64) {
-	if l.node_x.NodeId() != from_node.NodeId() {
+	if l.nodeX.NodeId() != from_node.NodeId() {
 		l.currentQueueTimeYX += packetTransferTime
 	} else {
 		l.currentQueueTimeXY += packetTransferTime
@@ -137,7 +137,7 @@ func (l *Link) addToQueueTime(from_node node, packetTransferTime float64) {
 }
 
 func (l *Link) subtractFromQueueTime(from_node node, packetTransferTime float64) {
-	if l.node_x.NodeId() != from_node.NodeId() {
+	if l.nodeX.NodeId() != from_node.NodeId() {
 		l.currentQueueTimeYX -= packetTransferTime
 	} else {
 		l.currentQueueTimeXY -= packetTransferTime
@@ -145,8 +145,8 @@ func (l *Link) subtractFromQueueTime(from_node node, packetTransferTime float64)
 }
 
 func (l *Link) isLinkBetweenSwitches() bool {
-	_, okX := l.node_x.(*Switch)
-	_, okY := l.node_y.(*Switch)
+	_, okX := l.nodeX.(*Switch)
+	_, okY := l.nodeY.(*Switch)
 	return okX && okY
 }
 

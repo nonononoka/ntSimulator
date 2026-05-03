@@ -18,7 +18,7 @@ type packetEvent struct {
 type packetLog struct {
 	source       string
 	destination  string
-	size         float64
+	size         int
 	creationTime float64
 	arrivalTime  float64
 	events       []*packetEvent
@@ -92,7 +92,7 @@ func (nes *NtEventSched) GenerateSummary() {
 		}
 		f := flows[key]
 		f.sentPackets++
-		f.sentBytes += log.size
+		f.sentBytes += float64(log.size)
 
 		if log.creationTime < f.firstCreation {
 			f.firstCreation = log.creationTime
@@ -100,7 +100,7 @@ func (nes *NtEventSched) GenerateSummary() {
 
 		if log.arrivalTime > 0 {
 			f.recvPackets++
-			f.recvBytes += log.size
+			f.recvBytes += float64(log.size)
 			f.totalDelay += log.arrivalTime - log.creationTime
 			if log.arrivalTime > f.lastArrival {
 				f.lastArrival = log.arrivalTime

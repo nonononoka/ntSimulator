@@ -8,12 +8,12 @@ import (
 
 func main() {
 	nes := nteventsched.NewNtEventSched(true, true)
-	n1, err1 := network.NewNode(1, "00:1A:2B:3C:4D:5E", nes)
+	n1, err1 := network.NewNode(1, "00:1A:2B:3C:4D:5E", "192.168.1.1", 1500, nes)
 	if err1 != nil {
 		fmt.Println(err1)
 		return
 	}
-	n2, err2 := network.NewNode(2, "00:1A:2B:3C:4D:5F", nes)
+	n2, err2 := network.NewNode(2, "00:1A:2B:3C:4D:5F", "192.168.1.2", 1500, nes)
 	if err2 != nil {
 		fmt.Println(err2)
 		return
@@ -42,13 +42,13 @@ func main() {
 	network.NewLink(s2, s4, 100000, 0.001, 0.0, nes)
 	network.NewLink(s3, s4, 100000, 0.001, 0.0, nes)
 
-	n1.SetTraffic("00:1A:2B:3C:4D:5F", 8000, 1.0, 10.0, 40.0, 85.0, 1.0)
+	n1.SetTraffic("00:1A:2B:3C:4D:5F", "192.168.1.2", 8000, 1.0, 10.0, 40.0, 10000, 1.0)
 	// n2.SetTraffic("00:1A:2B:3C:4D:5E", 8000, 40.0, 10.0, 40.0, 85.0, 1.0)
 	// linkを繋ぐ前
 	s1.PrintLinkStates()
 	s2.PrintLinkStates()
 	nes.Run()
-	nes.PrintPacketLogs()
+	// nes.PrintPacketLogs()
 	nes.GenerateSummary()
 	s1.PrintForwadingTable()
 	s2.PrintForwadingTable()

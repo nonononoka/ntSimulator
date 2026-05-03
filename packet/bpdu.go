@@ -22,7 +22,7 @@ func (b *BPDU) ParsePayload() (BPDUPayload, error) {
 	return bp, err
 }
 
-func NewBPDU(s string, d string, currentTime float64, rootID int, bridgeID int, pathCost float64) *BPDU {
+func NewBPDU(s string, d string, sourceip string, destip string, ttl int, currentTime float64, rootID int, bridgeID int, pathCost float64) *BPDU {
 	b, err := json.Marshal(BPDUPayload{RootID: rootID, BridgeID: bridgeID, PathCost: pathCost})
 	if err != nil {
 		panic(fmt.Sprintf("BPDU payload marshal error: %v", err))
@@ -30,6 +30,6 @@ func NewBPDU(s string, d string, currentTime float64, rootID int, bridgeID int, 
 	payload := string(b)
 
 	return &BPDU{
-		Packet: *NewPacketWithPayload(s, d, 20, float64(len(payload)), currentTime, payload),
+		Packet: *NewPacket(s, d, sourceip, destip, ttl, 20, len(payload), currentTime, payload),
 	}
 }
