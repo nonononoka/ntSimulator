@@ -102,20 +102,20 @@ func (s *Switch) processBPDU(bpdu *packet.BPDU, receivedLink *Link) {
 		fmt.Printf("BPDU parse error: %v\n", err)
 		return
 	}
-	newrootID := bp.RootID
-	newpathCost := bp.PathCost + 1
+	receivedRootID := bp.RootID
+	receivedPathCost := bp.PathCost + receivedLink.getLinkCost()
 
-	fmt.Printf("current time: %v, nodeId: %v processing BPDU newRootId: %v, currentRootId: %v, newRootPathCost: %v, currentRootPathCost: %v\n", s.nes.CurrentTime, s.nodeId, newrootID, s.rootId, newpathCost, s.rootPathCost)
+	fmt.Printf("current time: %v, nodeId: %v processing BPDU receivedRootId: %v, currentRootId: %v, receivedRootPathCost: %v, currentRootPathCost: %v\n", s.nes.CurrentTime, s.nodeId, receivedRootID, s.rootId, receivedPathCost, s.rootPathCost)
 
 	rootInfoChanged := false
-	if newrootID < s.rootId || (newrootID == s.rootId && newpathCost < s.rootPathCost) {
-		s.rootId = newrootID
-		s.rootPathCost = newpathCost
+	if receivedRootID < s.rootId || (receivedRootID == s.rootId && receivedPathCost < s.rootPathCost) {
+		s.rootId = receivedRootID
+		s.rootPathCost = receivedPathCost
 		s.isRoot = false
 		rootInfoChanged = true
 	}
 
-	s.updateLinkStates(receivedLink, newpathCost)
+	s.updateLinkStates(receivedLink, receivedPathCost)
 
 	// ルート情報が変更されたらBPDUを再送信
 	if rootInfoChanged {
