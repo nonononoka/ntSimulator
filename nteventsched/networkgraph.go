@@ -23,12 +23,12 @@ func newNetworkGraph() *NetworkGraph {
 	}
 }
 
-type GraphNode interface {
+type graphNode interface {
 	NodeId() int
 	NodeColor() string
 }
 
-func (ng *NetworkGraph) AddNode(n GraphNode) {
+func (ng *NetworkGraph) AddNode(n graphNode) {
 	attrs := []func(*graph.VertexProperties){}
 	if color := n.NodeColor(); color != "" {
 		attrs = append(attrs, graph.VertexAttribute("style", "filled"))

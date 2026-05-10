@@ -1,7 +1,9 @@
-package network
+package host
 
 import (
 	"fmt"
+	"nt-simulator/helper"
+	"nt-simulator/link"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
 	"strings"
@@ -10,40 +12,52 @@ import (
 )
 
 // Nodeの構造体
-type terminalN struct {
+type host struct {
 	nodeId            int
 	macAddress        string
 	ipAddress         string
-	links             []*Link
+	links             []*link.Link
 	mtu               int
 	fragmentedPackets map[string]map[int]packet.PacketI
 	nes               *nteventsched.NtEventSched
 }
 
-func (n *terminalN) Address() string {
+func NewHost(node_id int, macaddress string, ipaddress string, mtu int, nes *nteventsched.NtEventSched) (*host, error) {
+	if !helper.IsValidMacAddress(macaddress) {
+		return nil, fmt.Errorf("invalid MAC address: %s", macaddress)
+	}
+	if !helper.IsValidV4Address(ipaddress) {
+		return nil, fmt.Errorf("invalid ip address: %s", macaddress)
+	}
+	n := &host{nodeId: node_id, macAddress: macaddress, ipAddress: ipaddress, fragmentedPackets: make(map[string]map[int]packet.PacketI), mtu: mtu, nes: nes}
+	nes.AddNode(n)
+	return n, nil
+}
+
+func (n *host) Address() string {
 	return n.macAddress
 }
 
-func (n *terminalN) PrintNode() {
+func (n *host) PrintNode() {
 	connected_nodes := make([]int, 0, 10)
 	for _, v := range n.links {
-		if v.nodeX.NodeId() != n.nodeId {
-			connected_nodes = append(connected_nodes, v.nodeX.NodeId())
+		if v.NodeX().NodeId() != n.nodeId {
+			connected_nodes = append(connected_nodes, v.NodeX().NodeId())
 		}
-		if v.nodeY.NodeId() != n.nodeId {
-			connected_nodes = append(connected_nodes, v.nodeY.NodeId())
+		if v.NodeY().NodeId() != n.nodeId {
+			connected_nodes = append(connected_nodes, v.NodeY().NodeId())
 		}
 	}
 	fmt.Printf("ノード(ID: %v, アドレス: %s), 接続ノード: %v\n", n.nodeId, n.macAddress, connected_nodes)
 }
 
-func (n *terminalN) NodeId() int {
+func (n *host) NodeId() int {
 	return n.nodeId
 }
 
-func (n *terminalN) NodeColor() string { return "" }
+func (n *host) NodeColor() string { return "" }
 
-func (n *terminalN) AddLink(link *Link) {
+func (n *host) AddLink(link *link.Link) {
 	for _, l := range n.links {
 		if l == link {
 			return
@@ -52,19 +66,7 @@ func (n *terminalN) AddLink(link *Link) {
 	n.links = append(n.links, link)
 }
 
-func NewNode(node_id int, macaddress string, ipaddress string, mtu int, nes *nteventsched.NtEventSched) (*terminalN, error) {
-	if !isValidMacAddress(macaddress) {
-		return nil, fmt.Errorf("invalid MAC address: %s", macaddress)
-	}
-	if !isValidIpV4Address(ipaddress) {
-		return nil, fmt.Errorf("invalid ip address: %s", macaddress)
-	}
-	n := &terminalN{nodeId: node_id, macAddress: macaddress, ipAddress: ipaddress, fragmentedPackets: make(map[string]map[int]packet.PacketI), mtu: mtu, nes: nes}
-	nes.AddNode(n)
-	return n, nil
-}
-
-func (n *terminalN) receivePacket(p packet.PacketI, l *Link) {
+func (n *host) ReceivePacket(p packet.PacketI, l *link.Link) {
 	if p.ArrivalTime() == -1 {
 		n.nes.LogPacketInfo(p, "lost", n.nodeId)
 		return
@@ -88,8 +90,23 @@ func (n *terminalN) receivePacket(p packet.PacketI, l *Link) {
 	}
 }
 
+func (n *host) SetTraffic(destinationMac string, destinationIp string, bitrate float64, startTime float64, duration float64, headerSize int, payloadSize int, burstiness float64) {
+	endTime := startTime + duration
+	packetSize := headerSize + payloadSize
+	// burstinessはよくわからん
+	// このintervalで送れば，理論上指定したbitrateになる．
+	interval := float64(packetSize*8) / bitrate * burstiness
+
+	// 全部のcreatePacketのスケジュールを最初にしておく
+	for t := startTime; t < endTime; t += interval {
+		n.nes.ScheduleEvent(t, func(args ...any) {
+			n.createPacket(destinationMac, destinationIp, headerSize, payloadSize, strings.Repeat("X", payloadSize))
+		})
+	}
+}
+
 // fragmentedPacketsにoriginalDataIdのところにoffset付きで保管する
-func (n *terminalN) storeFragment(fragment packet.PacketI) {
+func (n *host) storeFragment(fragment packet.PacketI) {
 	originalDataId := fragment.GetHeader().FragmentFlags.OriginalDataId
 	offset := fragment.GetHeader().FragmentOffset
 
@@ -101,7 +118,7 @@ func (n *terminalN) storeFragment(fragment packet.PacketI) {
 	n.nes.LogPacketInfo(fragment, fmt.Sprintf("fragment_stored offset:%v originalDataId:%s moreflagment:%v", fragment.GetHeader().FragmentOffset, fragment.GetHeader().FragmentFlags.OriginalDataId, fragment.GetHeader().FragmentFlags.MoreFragment), n.nodeId)
 }
 
-func (n *terminalN) reassembleAndProcessPacket(lastFragment packet.PacketI) {
+func (n *host) reassembleAndProcessPacket(lastFragment packet.PacketI) {
 	originalDataId := lastFragment.GetHeader().FragmentFlags.OriginalDataId
 	if _, ok := n.fragmentedPackets[originalDataId]; !ok {
 		// 対応するフラグメントがない場合
@@ -126,19 +143,19 @@ func (n *terminalN) reassembleAndProcessPacket(lastFragment packet.PacketI) {
 	n.nes.LogPacketInfo(lastFragment, "reassembled", n.nodeId)
 }
 
-func (n *terminalN) sendPacket(p *packet.Packet) {
+func (n *host) internalSendPacket(p *packet.Packet) {
 	n.nes.LogPacketInfo(p, "sent", n.nodeId)
 	if p.Header.DestinationMac == n.macAddress {
-		n.receivePacket(p, nil)
+		n.ReceivePacket(p, nil)
 	} else {
 		for _, l := range n.links {
-			var from_node *terminalN = n
-			l.enqueuePacket(p, from_node)
+			var from_node *host = n
+			l.EnqueuePacket(p, from_node)
 		}
 	}
 }
 
-func (n *terminalN) SendPacket(destinationMac string, destinationIp string, data string, headerSize int) {
+func (n *host) sendPacket(destinationMac string, destinationIp string, data string, headerSize int) {
 	payloadSize := n.mtu - headerSize
 	totalSize := len(data) // goだとこれはバイト数になる
 	offset := 0
@@ -157,28 +174,13 @@ func (n *terminalN) SendPacket(destinationMac string, destinationIp string, data
 
 		packet := packet.NewFragment(n.macAddress, destinationMac, n.ipAddress, destinationIp, 64, headerSize, payloadSize, n.nes.CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData)
 
-		n.sendPacket(packet) // 細かくfragmentにしたpacketを送信する
+		n.internalSendPacket(packet) // 細かくfragmentにしたpacketを送信する
 		offset += payloadSize
 	}
 }
 
-func (n *terminalN) createPacket(destinationMac string, destinationIp string, headerSize int, payloadSize int, payload string) {
+func (n *host) createPacket(destinationMac string, destinationIp string, headerSize int, payloadSize int, payload string) {
 	p := packet.NewPacket(n.macAddress, destinationMac, n.ipAddress, destinationIp, 64, headerSize, payloadSize, n.nes.CurrentTime, payload)
 	n.nes.LogPacketInfo(p, "created", n.nodeId)
-	n.SendPacket(destinationMac, destinationIp, payload, headerSize)
-}
-
-func (n *terminalN) SetTraffic(destinationMac string, destinationIp string, bitrate float64, startTime float64, duration float64, headerSize int, payloadSize int, burstiness float64) {
-	endTime := startTime + duration
-	packetSize := headerSize + payloadSize
-	// burstinessはよくわからん
-	// このintervalで送れば，理論上指定したbitrateになる．
-	interval := float64(packetSize*8) / bitrate * burstiness
-
-	// 全部のcreatePacketのスケジュールを最初にしておく
-	for t := startTime; t < endTime; t += interval {
-		n.nes.ScheduleEvent(t, func(args ...any) {
-			n.createPacket(destinationMac, destinationIp, headerSize, payloadSize, strings.Repeat("X", payloadSize))
-		})
-	}
+	n.sendPacket(destinationMac, destinationIp, payload, headerSize)
 }

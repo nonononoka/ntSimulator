@@ -2,18 +2,20 @@ package main
 
 import (
 	"fmt"
-	"nt-simulator/network"
+	"nt-simulator/link"
+	"nt-simulator/node/host"
+	"nt-simulator/node/nswitch"
 	"nt-simulator/nteventsched"
 )
 
 func main() {
 	nes := nteventsched.NewNtEventSched(true, true)
-	n1, err1 := network.NewNode(1, "00:1A:2B:3C:4D:5E", "192.168.1.1", 1500, nes)
+	n1, err1 := host.NewHost(1, "00:1A:2B:3C:4D:5E", "192.168.1.1", 1500, nes)
 	if err1 != nil {
 		fmt.Println(err1)
 		return
 	}
-	n2, err2 := network.NewNode(2, "00:1A:2B:3C:4D:5F", "192.168.1.2", 1500, nes)
+	n2, err2 := host.NewHost(2, "00:1A:2B:3C:4D:5F", "192.168.1.2", 1500, nes)
 	if err2 != nil {
 		fmt.Println(err2)
 		return
@@ -28,19 +30,19 @@ func main() {
 	// 	fmt.Println(err4)
 	// 	return
 	// }
-	s1 := network.NewSwitch(nes, 5)
-	s2 := network.NewSwitch(nes, 6)
-	s3 := network.NewSwitch(nes, 7)
-	s4 := network.NewSwitch(nes, 8)
+	s1 := nswitch.NewSwitch(nes, 5)
+	s2 := nswitch.NewSwitch(nes, 6)
+	s3 := nswitch.NewSwitch(nes, 7)
+	s4 := nswitch.NewSwitch(nes, 8)
 
-	network.NewLink(s1, n1, 100000, 0.001, 0.0, nes)
-	network.NewLink(s3, n2, 100000, 0.001, 0.0, nes)
-	network.NewLink(s1, s2, 100000, 0.001, 0.0, nes)
-	network.NewLink(s1, s3, 100000, 0.001, 0.0, nes)
-	network.NewLink(s1, s4, 100000, 0.001, 0.0, nes)
-	network.NewLink(s2, s3, 100000, 0.001, 0.0, nes)
-	network.NewLink(s2, s4, 100000, 0.001, 0.0, nes)
-	network.NewLink(s3, s4, 100000, 0.001, 0.0, nes)
+	link.NewLink(s1, n1, 100000, 0.001, 0.0, nes)
+	link.NewLink(s3, n2, 100000, 0.001, 0.0, nes)
+	link.NewLink(s1, s2, 100000, 0.001, 0.0, nes)
+	link.NewLink(s1, s3, 100000, 0.001, 0.0, nes)
+	link.NewLink(s1, s4, 100000, 0.001, 0.0, nes)
+	link.NewLink(s2, s3, 100000, 0.001, 0.0, nes)
+	link.NewLink(s2, s4, 100000, 0.001, 0.0, nes)
+	link.NewLink(s3, s4, 100000, 0.001, 0.0, nes)
 
 	n1.SetTraffic("00:1A:2B:3C:4D:5F", "192.168.1.2", 8000, 1.0, 10.0, 40.0, 10000, 1.0)
 	// n2.SetTraffic("00:1A:2B:3C:4D:5E", 8000, 40.0, 10.0, 40.0, 85.0, 1.0)
