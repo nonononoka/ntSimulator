@@ -6,6 +6,7 @@ import (
 	"nt-simulator/link"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -110,7 +111,7 @@ func (n *host) storeFragment(fragment packet.PacketI) {
 	originalDataId := fragment.GetHeader().FragmentFlags.OriginalDataId
 	offset := fragment.GetHeader().FragmentOffset
 
-	if _, ok := n.fragmentedPackets[originalDataId][offset]; !ok {
+	if _, ok := n.fragmentedPackets[originalDataId]; !ok {
 		n.fragmentedPackets[originalDataId] = make(map[int]packet.PacketI)
 	}
 
@@ -126,20 +127,25 @@ func (n *host) reassembleAndProcessPacket(lastFragment packet.PacketI) {
 	}
 
 	fragment_maps := n.fragmentedPackets[originalDataId]
-	fragments := make([]packet.PacketI, 0, len(fragment_maps))
-	for _, v := range fragment_maps {
-		fragments = append(fragments, v)
+	offsets := make([]int, 0, len(fragment_maps))
+	for k := range fragment_maps {
+		offsets = append(offsets, k)
 	}
+	sort.Ints(offsets)
 
-	// 再組立されたデータを結合して再構築
+	// 再組立されたデータをFragmentOffset順に結合して再構築
 	var assembledPayload string
-	for _, p := range fragments {
-		assembledPayload += p.GetPayload()
+	for _, offset := range offsets {
+		assembledPayload += fragment_maps[offset].GetPayload()
 	}
 
 	assembledPayload += lastFragment.GetPayload()
-	// fmt.Printf("assembled payload: %s\n", assembledPayload)
-	// TODO 期待される長さと実際の総データ長を比較して，欠けているフラグメントをチェック
+
+	expectedLength := lastFragment.GetHeader().FragmentOffset + len(lastFragment.GetPayload())
+	if len(assembledPayload) != expectedLength {
+		n.nes.LogPacketInfo(lastFragment, fmt.Sprintf("reassemble failed: missing fragments (expected %d bytes, got %d bytes)", expectedLength, len(assembledPayload)), n.nodeId)
+		return
+	}
 	n.nes.LogPacketInfo(lastFragment, "reassembled", n.nodeId)
 }
 
@@ -172,7 +178,7 @@ func (n *host) sendPacket(destinationMac string, destinationIp string, data stri
 		fragmentData := data[offset:end]
 		fragmentOffset := offset
 
-		packet := packet.NewFragment(n.macAddress, destinationMac, n.ipAddress, destinationIp, 64, headerSize, payloadSize, n.nes.CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData)
+		packet := packet.NewFragment(n.macAddress, destinationMac, n.ipAddress, destinationIp, 64, headerSize, n.nes.CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData)
 
 		n.internalSendPacket(packet) // 細かくfragmentにしたpacketを送信する
 		offset += payloadSize

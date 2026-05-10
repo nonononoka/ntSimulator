@@ -1,7 +1,20 @@
 strict graph {
 
 
+	"1" [  weight=0 ];
+
+	"1" -- "5" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00",  weight=0 ];
+
+	"2" [  weight=0 ];
+
+	"2" -- "7" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00", style="",  weight=0 ];
+
 	"5" [ fillcolor="red", style="filled",  weight=0 ];
+
+	"5" -- "7" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00", style="",  weight=0 ];
 
 	"5" -- "8" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00", style="",  weight=0 ];
@@ -10,9 +23,6 @@ strict graph {
 ", penwidth="5.00",  weight=0 ];
 
 	"5" -- "6" [ color="green", label="0.1 Mbps 0.001 s
-", penwidth="5.00", style="",  weight=0 ];
-
-	"5" -- "7" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00", style="",  weight=0 ];
 
 	"6" [ fillcolor="red", style="filled",  weight=0 ];
@@ -28,6 +38,9 @@ strict graph {
 
 	"7" [ fillcolor="red", style="filled",  weight=0 ];
 
+	"7" -- "2" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00", style="",  weight=0 ];
+
 	"7" -- "5" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00", style="",  weight=0 ];
 
@@ -37,28 +50,15 @@ strict graph {
 	"7" -- "8" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00", style="dashed",  weight=0 ];
 
-	"7" -- "2" [ color="green", label="0.1 Mbps 0.001 s
-", penwidth="5.00", style="",  weight=0 ];
-
 	"8" [ fillcolor="red", style="filled",  weight=0 ];
+
+	"8" -- "5" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00", style="",  weight=0 ];
 
 	"8" -- "6" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00", style="dashed",  weight=0 ];
 
 	"8" -- "7" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00", style="dashed",  weight=0 ];
-
-	"8" -- "5" [ color="green", label="0.1 Mbps 0.001 s
-", penwidth="5.00", style="",  weight=0 ];
-
-	"1" [  weight=0 ];
-
-	"1" -- "5" [ color="green", label="0.1 Mbps 0.001 s
-", penwidth="5.00",  weight=0 ];
-
-	"2" [  weight=0 ];
-
-	"2" -- "7" [ color="green", label="0.1 Mbps 0.001 s
-", penwidth="5.00", style="",  weight=0 ];
 
 }

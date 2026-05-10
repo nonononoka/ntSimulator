@@ -41,8 +41,8 @@ type Packet struct {
 	arrivalTime  float64
 }
 
-func NewFragment(s string, d string, sourceip string, destip string, ttl int, header_size int, payload_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string) *Packet {
-	size := header_size + payload_size
+func NewFragment(s string, d string, sourceip string, destip string, ttl int, header_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string) *Packet {
+	size := header_size + len(p)
 	return &Packet{
 		Header: Header{
 			SourceMac:      s,

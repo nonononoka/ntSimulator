@@ -16,12 +16,13 @@ type packetEvent struct {
 }
 
 type packetLog struct {
-	source       string
-	destination  string
-	size         int
-	creationTime float64
-	arrivalTime  float64
-	events       []*packetEvent
+	source         string
+	destination    string
+	size           int
+	creationTime   float64
+	arrivalTime    float64
+	originalDataId string
+	events         []*packetEvent
 }
 
 func (nes *NtEventSched) LogPacketInfo(p packet.PacketI, eventType string, nodeId int) {
@@ -31,11 +32,12 @@ func (nes *NtEventSched) LogPacketInfo(p packet.PacketI, eventType string, nodeI
 	_, ok := nes.packetLogs[p.GetId()]
 	if !ok {
 		nes.packetLogs[p.GetId()] = &packetLog{
-			source:       p.GetHeader().SourceMac,
-			destination:  p.GetHeader().DestinationMac,
-			size:         p.GetSize(),
-			creationTime: p.CreationTime(),
-			arrivalTime:  p.ArrivalTime(),
+			source:         p.GetHeader().SourceMac,
+			destination:    p.GetHeader().DestinationMac,
+			size:           p.GetSize(),
+			creationTime:   p.CreationTime(),
+			arrivalTime:    p.ArrivalTime(),
+			originalDataId: p.GetHeader().FragmentFlags.OriginalDataId,
 		}
 	}
 
@@ -82,30 +84,74 @@ func (nes *NtEventSched) GenerateSummary() {
 		firstCreation float64
 		lastArrival   float64
 	}
+	type fragGroup struct {
+		flowKey       string
+		totalBytes    float64
+		firstCreation float64
+		lastArrival   float64
+		hasSent       bool
+		isReceived    bool
+	}
 
 	flows := make(map[string]*flowStats)
+	fragGroups := make(map[string]*fragGroup)
 
-	for _, log := range nes.packetLogs {
-		key := log.source + " -> " + log.destination
+	initFlow := func(key string) {
 		if _, ok := flows[key]; !ok {
 			flows[key] = &flowStats{firstCreation: math.MaxFloat64}
 		}
-		f := flows[key]
-		f.sentPackets++
-		f.sentBytes += float64(log.size)
+	}
 
-		if log.creationTime < f.firstCreation {
-			f.firstCreation = log.creationTime
-		}
+	for _, log := range nes.packetLogs {
+		key := log.source + " -> " + log.destination
 
-		if log.arrivalTime > 0 {
-			f.recvPackets++
-			f.recvBytes += float64(log.size)
-			f.totalDelay += log.arrivalTime - log.creationTime
-			if log.arrivalTime > f.lastArrival {
-				f.lastArrival = log.arrivalTime
+		if log.originalDataId != "" {
+			// フラグメント: originalDataId でグループ化して1論理パケットとして扱う
+			if _, ok := fragGroups[log.originalDataId]; !ok {
+				fragGroups[log.originalDataId] = &fragGroup{
+					flowKey:       key,
+					firstCreation: math.MaxFloat64,
+				}
 			}
-		} else if log.arrivalTime == -1 {
+			fg := fragGroups[log.originalDataId]
+			for _, e := range log.events {
+				if e.event == "sent" {
+					fg.hasSent = true
+					fg.totalBytes += float64(log.size)
+				}
+				if e.event == "reassembled" || e.event == "processed" {
+					fg.isReceived = true
+				}
+			}
+			if log.creationTime < fg.firstCreation {
+				fg.firstCreation = log.creationTime
+			}
+			if log.arrivalTime > 0 && log.arrivalTime > fg.lastArrival {
+				fg.lastArrival = log.arrivalTime
+			}
+		}
+		// originalDataId == "" は断片化前の元パケット ("created" イベントのみ) なので無視
+	}
+
+	for _, fg := range fragGroups {
+		if !fg.hasSent {
+			continue
+		}
+		initFlow(fg.flowKey)
+		f := flows[fg.flowKey]
+		f.sentPackets++
+		f.sentBytes += fg.totalBytes
+		if fg.firstCreation < f.firstCreation {
+			f.firstCreation = fg.firstCreation
+		}
+		if fg.isReceived {
+			f.recvPackets++
+			f.recvBytes += fg.totalBytes
+			f.totalDelay += fg.lastArrival - fg.firstCreation
+			if fg.lastArrival > f.lastArrival {
+				f.lastArrival = fg.lastArrival
+			}
+		} else {
 			f.lostPackets++
 		}
 	}
