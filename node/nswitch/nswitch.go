@@ -9,9 +9,7 @@ import (
 )
 
 type Switch struct {
-	nes             *nteventsched.NtEventSched
-	nodeId          int
-	links           []*link.Link
+	*link.BaseNode
 	forwardingTable map[string]*link.Link
 	linkStates      map[*link.Link]string // Linkの状態を管理するmap
 	rootId          int                   // 初期状態では自身をルートとする
@@ -19,10 +17,9 @@ type Switch struct {
 	isRoot          bool
 }
 
-func NewSwitch(nes *nteventsched.NtEventSched, nodeId int) *Switch {
+func NewSwitch(nes *nteventsched.NtEventSched, nodeId int, ipAddress string, macAddress string) *Switch {
 	s := &Switch{
-		nes:             nes,
-		nodeId:          nodeId,
+		BaseNode:        link.NewBaseNode(nodeId, nes, macAddress, ipAddress),
 		forwardingTable: make(map[string]*link.Link),
 		linkStates:      make(map[*link.Link]string),
 		rootId:          nodeId,
@@ -33,21 +30,17 @@ func NewSwitch(nes *nteventsched.NtEventSched, nodeId int) *Switch {
 	return s
 }
 
-func (s *Switch) NodeId() int {
-	return s.nodeId
-}
-
 func (s *Switch) NodeColor() string { return "red" }
 
 // スイッチに新しいリンクを追加
 // BPDUを送信
-func (s *Switch) AddLink(link *link.Link) {
-	for _, l := range s.links {
+func (s *Switch) AddLink(link *link.Link, ip string) {
+	for _, l := range s.GetLinks() {
 		if l == link {
 			return
 		}
 	}
-	s.links = append(s.links, link)
+	s.SetLinks(append(s.GetLinks(), link))
 	s.linkStates[link] = "initial"
 	s.sendBPDU()
 }
@@ -55,14 +48,14 @@ func (s *Switch) AddLink(link *link.Link) {
 // スイッチがパケットを受信したとき
 func (s *Switch) ReceivePacket(p packet.PacketI, l *link.Link) {
 	if bpdu, ok := p.(*packet.BPDU); ok {
-		s.nes.LogPacketInfo(bpdu, "BPDU received", s.nodeId)
+		s.GetNES().LogPacketInfo(bpdu, "BPDU received", s.NodeId())
 		s.processBPDU(bpdu, l)
 	} else {
 		if p.ArrivalTime() == -1 {
-			s.nes.LogPacketInfo(p, "lost", s.nodeId)
+			s.GetNES().LogPacketInfo(p, "lost", s.NodeId())
 			return
 		}
-		s.nes.LogPacketInfo(p, "received", s.nodeId)
+		s.GetNES().LogPacketInfo(p, "received", s.NodeId())
 		sourceMacAddress := p.GetHeader().SourceMac
 		s.updateForwardingTable(sourceMacAddress, l)
 		s.forwardPacket(p, l)
@@ -71,10 +64,10 @@ func (s *Switch) ReceivePacket(p packet.PacketI, l *link.Link) {
 
 func (s *Switch) PrintNode() {
 	switchInfo := ""
-	for _, l := range s.links {
+	for _, l := range s.GetLinks() {
 		switchInfo += fmt.Sprintf("%v <-> %v, ", l.NodeX().NodeId(), l.NodeY().NodeId())
 	}
-	fmt.Printf("スイッチ ノード(ID: %v\n", s.nodeId)
+	fmt.Printf("スイッチ ノード(ID: %v\n", s.NodeId())
 }
 
 func (s *Switch) PrintForwadingTable() {
@@ -90,9 +83,9 @@ func (s *Switch) PrintLinkStates() {
 }
 
 func (s *Switch) sendBPDU() {
-	for _, l := range s.links {
+	for _, l := range s.GetLinks() {
 		// ブロードキャストアドレス：FF:FF:FF:FF:FF:FF
-		bpdu := packet.NewBPDU("00:00:00:00:00:00", "FF:FF:FF:FF:FF:FF", "00:00:00:00", "255:255:255:255", 64, s.nes.CurrentTime, s.rootId, s.nodeId, s.rootPathCost)
+		bpdu := packet.NewBPDU("00:00:00:00:00:00", "FF:FF:FF:FF:FF:FF", "00:00:00:00", "255:255:255:255", 64, s.GetNES().CurrentTime, s.rootId, s.NodeId(), s.rootPathCost)
 		l.EnqueuePacket(bpdu, s)
 	}
 }
@@ -111,7 +104,7 @@ func (s *Switch) processBPDU(bpdu *packet.BPDU, receivedLink *link.Link) {
 	receivedRootID := bp.RootID
 	receivedPathCost := bp.PathCost + receivedLink.GetLinkCost()
 
-	fmt.Printf("current time: %v, nodeId: %v processing BPDU receivedRootId: %v, currentRootId: %v, receivedRootPathCost: %v, currentRootPathCost: %v\n", s.nes.CurrentTime, s.nodeId, receivedRootID, s.rootId, receivedPathCost, s.rootPathCost)
+	fmt.Printf("current time: %v, nodeId: %v processing BPDU receivedRootId: %v, currentRootId: %v, receivedRootPathCost: %v, currentRootPathCost: %v\n", s.GetNES().CurrentTime, s.NodeId(), receivedRootID, s.rootId, receivedPathCost, s.rootPathCost)
 
 	rootInfoChanged := false
 	if receivedRootID < s.rootId || (receivedRootID == s.rootId && receivedPathCost < s.rootPathCost) {
@@ -132,7 +125,7 @@ func (s *Switch) processBPDU(bpdu *packet.BPDU, receivedLink *link.Link) {
 func (s *Switch) updateLinkStates(receivedLink *link.Link, receivedBPDUPathCost float64) {
 	if s.isRoot {
 		// ルートブリッジの場合，全てのポートをフォワーディング状態に設定
-		for _, link := range s.links {
+		for _, link := range s.GetLinks() {
 			s.linkStates[link] = "forwarding"
 		}
 	} else {
@@ -140,7 +133,7 @@ func (s *Switch) updateLinkStates(receivedLink *link.Link, receivedBPDUPathCost 
 		bestPathCost := math.MaxFloat64
 		var bestLink *link.Link
 		bestLinkId := 0
-		for _, l := range s.links {
+		for _, l := range s.GetLinks() {
 			if isLinkBetweenSwitches(l) {
 				linkPathCost := l.GetLinkCost() + receivedBPDUPathCost
 				linkId := min(l.NodeX().NodeId(), l.NodeY().NodeId())
@@ -153,13 +146,13 @@ func (s *Switch) updateLinkStates(receivedLink *link.Link, receivedBPDUPathCost 
 			}
 		}
 
-		for _, l := range s.links {
+		for _, l := range s.GetLinks() {
 			if l == bestLink || !isLinkBetweenSwitches(l) {
 				s.linkStates[l] = "forwarding"
-				s.nes.UpdateEdgeStyle(l.NodeX().NodeId(), l.NodeY().NodeId(), "")
+				s.GetNES().UpdateEdgeStyle(l.NodeX().NodeId(), l.NodeY().NodeId(), "")
 			} else {
 				s.linkStates[l] = "blocking"
-				s.nes.UpdateEdgeStyle(l.NodeX().NodeId(), l.NodeY().NodeId(), "dashed")
+				s.GetNES().UpdateEdgeStyle(l.NodeX().NodeId(), l.NodeY().NodeId(), "dashed")
 			}
 		}
 
@@ -171,15 +164,15 @@ func (s *Switch) forwardPacket(p packet.PacketI, receivedLink *link.Link) {
 	destinationAddress := p.GetHeader().DestinationMac
 	if l, ok := s.forwardingTable[destinationAddress]; ok {
 		if s.linkStates[l] == "forwarding" {
-			s.nes.LogPacketInfo(p, "forwarded", s.nodeId)
+			s.GetNES().LogPacketInfo(p, "forwarded", s.NodeId())
 			l.EnqueuePacket(p, s)
 		}
 	} else {
 		// 宛先が不明の場合，ブロードキャスト
-		for _, link := range s.links {
+		for _, link := range s.GetLinks() {
 			if link != receivedLink {
 				if s.linkStates[link] == "forwarding" {
-					s.nes.LogPacketInfo(p, "broadcast", s.nodeId)
+					s.GetNES().LogPacketInfo(p, "broadcast", s.NodeId())
 					link.EnqueuePacket(p, s)
 				}
 			}

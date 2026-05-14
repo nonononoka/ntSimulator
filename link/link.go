@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"net"
+	"nt-simulator/address"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
 )
@@ -25,8 +27,36 @@ type Link struct {
 // networkに含まれるnode（hostとかswitchとか含めて）のinterface
 type node interface {
 	NodeId() int
-	AddLink(link *Link)
+	AddLink(link *Link, ip string)
 	ReceivePacket(p packet.PacketI, l *Link)
+	GetIPAddress() string
+}
+
+type BaseNode struct {
+	nodeId int
+	links  []*Link
+	*address.Address
+	nes *nteventsched.NtEventSched
+}
+
+func NewBaseNode(nodeId int, nes *nteventsched.NtEventSched, macaddress string, ipaddress string) *BaseNode {
+	return &BaseNode{nodeId: nodeId, nes: nes, Address: address.NewAddress(macaddress, ipaddress)}
+}
+
+func (b *BaseNode) GetLinks() []*Link {
+	return b.links
+}
+
+func (b *BaseNode) SetLinks(links []*Link) {
+	b.links = links
+}
+
+func (b *BaseNode) NodeId() int {
+	return b.nodeId
+}
+
+func (b *BaseNode) GetNES() *nteventsched.NtEventSched {
+	return b.nes
 }
 
 // linkのqueueに突っ込むパケットとか
@@ -39,10 +69,11 @@ type packetWithQueueTime struct {
 type linkq []*packetWithQueueTime
 
 func NewLink(nodeX node, nodeY node, bandwidth float64, delay float64, packetLoss float64, nes *nteventsched.NtEventSched) *Link {
+	ipX, ipY := setupLinkIps(nodeX, nodeY)
 	nes.AddEdge(nodeX.NodeId(), nodeY.NodeId(), fmt.Sprintf("%v Mbps %v s\n", bandwidth/1000000, delay), bandwidth, delay)
 	l := Link{nodeX: nodeX, nodeY: nodeY, bandwidth: bandwidth, delay: delay, packetLoss: packetLoss, nes: nes}
-	nodeX.AddLink(&l)
-	nodeY.AddLink(&l)
+	nodeX.AddLink(&l, ipX)
+	nodeY.AddLink(&l, ipY)
 	return &l
 }
 
@@ -162,4 +193,43 @@ func (l *Link) subtractFromQueueTime(from_node node, packetTransferTime float64)
 	} else {
 		l.currentQueueTimeXY -= packetTransferTime
 	}
+}
+
+func setupLinkIps(nodeX node, nodeY node) (string, string) {
+	// ノードから利用可能なIPアドレスリストを取得
+	ipListX := getAvailableIPList(nodeX)
+	ipListY := getAvailableIPList(nodeY)
+
+	// 互換性のあるIPアドレスを選択
+	selectedIPX, selectedIPY := selectCompatibleIp(ipListX, ipListY)
+
+	// 使用済みIPアドレスにフラグを設定
+	return selectedIPX, selectedIPY
+}
+
+func getAvailableIPList(node node) []string {
+	return []string{node.GetIPAddress()}
+}
+
+func selectCompatibleIp(ipListX []string, ipListY []string) (string, string) {
+	for _, ipCIDRX := range ipListX {
+		for _, ipCIDRY := range ipListY {
+			fmt.Printf(ipCIDRX)
+			fmt.Printf(ipCIDRY)
+			if isCompatible(ipCIDRX, ipCIDRY) {
+				return ipCIDRX, ipCIDRY
+			}
+		}
+	}
+	panic("互換性のあるipアドレスのペアが見つかりませんでした")
+}
+
+// 2つのIPアドレスが同じネットワークに属するかどうか
+func isCompatible(ipCIDRX string, ipCIDRY string) bool {
+	ip1, net1, err1 := net.ParseCIDR(ipCIDRX)
+	ip2, net2, err2 := net.ParseCIDR(ipCIDRY)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return net1.Contains(ip2) && net2.Contains(ip1)
 }

@@ -10,12 +10,12 @@ import (
 
 func main() {
 	nes := nteventsched.NewNtEventSched(true, true)
-	n1, err1 := host.NewHost(1, "00:1A:2B:3C:4D:5E", "192.168.1.1", 1500, nes)
+	n1, err1 := host.NewHost(1, "00:1A:2B:3C:4D:5E", "192.168.1.1/24", 1500, nes)
 	if err1 != nil {
 		fmt.Println(err1)
 		return
 	}
-	n2, err2 := host.NewHost(2, "00:1A:2B:3C:4D:5F", "192.168.1.2", 1500, nes)
+	n2, err2 := host.NewHost(2, "00:1A:2B:3C:4D:5F", "192.168.1.2/24", 1500, nes)
 	if err2 != nil {
 		fmt.Println(err2)
 		return
@@ -30,32 +30,33 @@ func main() {
 	// 	fmt.Println(err4)
 	// 	return
 	// }
-	s1 := nswitch.NewSwitch(nes, 5)
-	s2 := nswitch.NewSwitch(nes, 6)
-	s3 := nswitch.NewSwitch(nes, 7)
-	s4 := nswitch.NewSwitch(nes, 8)
+	s1 := nswitch.NewSwitch(nes, 5, "192.168.1.3/24", "00:1A:2B:3C:4D:5E")
+	// s2 := nswitch.NewSwitch(nes, 6, "192.170.1.2", "00:1A:2B:3C:3D:5E")
+	// s3 := nswitch.NewSwitch(nes, 7, "192.171.1.2", "00:1A:2B:3C:2D:5E")
+	// s4 := nswitch.NewSwitch(nes, 8, "192.172.1.2", "00:1A:2B:3C:1D:6E")
 
 	link.NewLink(s1, n1, 100000, 0.001, 0.0, nes)
-	link.NewLink(s3, n2, 100000, 0.001, 0.0, nes)
-	link.NewLink(s1, s2, 100000, 0.001, 0.0, nes)
-	link.NewLink(s1, s3, 100000, 0.001, 0.0, nes)
-	link.NewLink(s1, s4, 100000, 0.001, 0.0, nes)
-	link.NewLink(s2, s3, 100000, 0.001, 0.0, nes)
-	link.NewLink(s2, s4, 100000, 0.001, 0.0, nes)
-	link.NewLink(s3, s4, 100000, 0.001, 0.0, nes)
+	link.NewLink(s1, n2, 100000, 0.001, 0.0, nes)
+	// link.NewLink(s3, n2, 100000, 0.001, 0.0, nes)
+	// link.NewLink(s1, s2, 100000, 0.001, 0.0, nes)
+	// link.NewLink(s1, s3, 100000, 0.001, 0.0, nes)
+	// link.NewLink(s1, s4, 100000, 0.001, 0.0, nes)
+	// link.NewLink(s2, s3, 100000, 0.001, 0.0, nes)
+	// link.NewLink(s2, s4, 100000, 0.001, 0.0, nes)
+	// link.NewLink(s3, s4, 100000, 0.001, 0.0, nes)
 
 	n1.SetTraffic("00:1A:2B:3C:4D:5F", "192.168.1.2", 8000, 1.0, 10.0, 40.0, 10000, 1.0)
 	// n2.SetTraffic("00:1A:2B:3C:4D:5E", 8000, 40.0, 10.0, 40.0, 85.0, 1.0)
 	// linkを繋ぐ前
 	s1.PrintLinkStates()
-	s2.PrintLinkStates()
+	// s2.PrintLinkStates()
 	nes.Run()
 	// nes.PrintPacketLogs()
 	nes.GenerateSummary()
 	s1.PrintForwadingTable()
-	s2.PrintForwadingTable()
+	// s2.PrintForwadingTable()
 	// linkを繋いだあと
 	s1.PrintLinkStates()
-	s2.PrintLinkStates()
+	// s2.PrintLinkStates()
 	nes.Visualize()
 }
