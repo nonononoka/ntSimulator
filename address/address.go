@@ -1,42 +1,48 @@
 package address
 
 import (
+	"fmt"
 	"net"
-	"regexp"
 )
 
-type Address struct {
-	macAddress string
-	ipAddress  string
+type MacAddress struct {
+	address string
 }
 
-func NewAddress(macAddress string, ipAddress string) *Address {
-	return &Address{macAddress: macAddress, ipAddress: ipAddress}
+type IpAddress struct {
+	address string
 }
 
-func (address *Address) IsValidMacAddress() bool {
-	macAddress := address.macAddress
-	matched, _ := regexp.MatchString(`^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$`, macAddress)
-	return matched
+func NewMacAddress(address string) *MacAddress {
+	if !isValidMacAddress(address) {
+		panic(fmt.Sprintf("not valid mac address: %s", address))
+	}
+	return &MacAddress{address: address}
 }
 
-func (address *Address) IsValidV4Address() bool {
-	ipAddress := address.ipAddress
-	ip := net.ParseIP(ipAddress)
-	return ip != nil && ip.To4() != nil
+// CIDR表記のアドレスを受け取るという想定
+func NewIPAddress(address string) *IpAddress {
+	if !isValidCIDRNotation(address) {
+		panic(fmt.Sprintf("not valid ip address: %s", address))
+	}
+	return &IpAddress{address: address}
 }
 
-func (address *Address) IsValidCIDRNotation() bool {
-	ipAddress := address.ipAddress
-	_, _, err := net.ParseCIDR(ipAddress)
+func isValidMacAddress(address string) bool {
+	_, err := net.ParseMAC(address)
+	return err == nil
+}
+
+func isValidCIDRNotation(address string) bool {
+	_, _, err := net.ParseCIDR(address)
 	if err != nil {
 		return false
 	}
 	return true
 }
 
-func (address *Address) GetCIDRIpAddress() net.IP {
-	ipAddress := address.ipAddress
+func (address *IpAddress) GetCIDRIpAddress() net.IP {
+	ipAddress := address.address
 	ip, _, err := net.ParseCIDR(ipAddress)
 	if err != nil {
 		panic("invalid CIDR notation: " + ipAddress)
@@ -44,10 +50,20 @@ func (address *Address) GetCIDRIpAddress() net.IP {
 	return ip
 }
 
-func (address *Address) GetIPAddress() string {
-	return address.ipAddress
+func (address *IpAddress) IsSameNetwork(otherIpAddress *IpAddress) bool {
+	_, net1, _ := net.ParseCIDR(address.address)
+	_, net2, _ := net.ParseCIDR(otherIpAddress.address)
+	return net1.String() == net2.String()
 }
 
-func (address *Address) GetMacAddress() string {
-	return address.macAddress
+func (address *IpAddress) String() string {
+	return address.address
+}
+
+func (address *MacAddress) GetMacAddress() *MacAddress {
+	return address
+}
+
+func (address *MacAddress) String() string {
+	return address.address
 }

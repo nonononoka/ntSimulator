@@ -3,6 +3,7 @@ package nteventsched
 import (
 	"fmt"
 	"math"
+	"nt-simulator/address"
 	"nt-simulator/packet"
 )
 
@@ -11,13 +12,13 @@ type packetEvent struct {
 	event    string
 	nodeId   int
 	packetId string
-	src      string
-	dst      string
+	src      *address.MacAddress
+	dst      *address.MacAddress
 }
 
 type packetLog struct {
-	source         string
-	destination    string
+	source         *address.MacAddress
+	destination    *address.MacAddress
 	size           int
 	creationTime   float64
 	arrivalTime    float64
@@ -103,7 +104,7 @@ func (nes *NtEventSched) GenerateSummary() {
 	}
 
 	for _, log := range nes.packetLogs {
-		key := log.source + " -> " + log.destination
+		key := log.source.String() + " -> " + log.destination.String()
 
 		if log.originalDataId != "" {
 			// フラグメント: originalDataId でグループ化して1論理パケットとして扱う

@@ -3,6 +3,7 @@ package packet
 import (
 	"encoding/json"
 	"fmt"
+	"nt-simulator/address"
 )
 
 type BPDUPayload struct {
@@ -22,14 +23,14 @@ func (b *BPDU) ParsePayload() (BPDUPayload, error) {
 	return bp, err
 }
 
-func NewBPDU(s string, d string, sourceip string, destip string, ttl int, currentTime float64, rootID int, bridgeID int, pathCost float64) *BPDU {
+func NewBPDU(s *address.MacAddress, d *address.MacAddress, ttl int, currentTime float64, rootID int, bridgeID int, pathCost float64) *BPDU {
 	b, err := json.Marshal(BPDUPayload{RootID: rootID, BridgeID: bridgeID, PathCost: pathCost})
 	if err != nil {
 		panic(fmt.Sprintf("BPDU payload marshal error: %v", err))
 	}
 	payload := string(b)
 
-	return &BPDU{
-		Packet: *NewPacket(s, d, sourceip, destip, ttl, 20, len(payload), currentTime, payload),
+	return &BPDU{ // BPDUは，データリンク層の話だからIPアドレスは使わないのでnil
+		Packet: *NewPacket(s, d, nil, nil, ttl, 20, len(payload), currentTime, payload),
 	}
 }

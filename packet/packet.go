@@ -2,6 +2,7 @@ package packet
 
 import (
 	"fmt"
+	"nt-simulator/address"
 
 	"github.com/google/uuid"
 )
@@ -12,10 +13,10 @@ type FragmentFlags struct {
 }
 
 type Header struct {
-	SourceMac      string
-	DestinationMac string
-	SourceIp       string
-	DestIp         string
+	SourceMac      *address.MacAddress
+	DestinationMac *address.MacAddress
+	SourceIp       *address.IpAddress
+	DestIp         *address.IpAddress
 	ttl            int
 	FragmentFlags  FragmentFlags
 	FragmentOffset int
@@ -41,7 +42,7 @@ type Packet struct {
 	arrivalTime  float64
 }
 
-func NewFragment(s string, d string, sourceip string, destip string, ttl int, header_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string) *Packet {
+func NewFragment(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, ttl int, header_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string) *Packet {
 	size := header_size + len(p)
 	return &Packet{
 		Header: Header{
@@ -60,7 +61,7 @@ func NewFragment(s string, d string, sourceip string, destip string, ttl int, he
 	}
 }
 
-func NewPacket(s string, d string, sourceip string, destip string, ttl int, header_size int, payload_size int, currentTime float64, p string) *Packet {
+func NewPacket(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, ttl int, header_size int, payload_size int, currentTime float64, p string) *Packet {
 	size := header_size + payload_size
 	return &Packet{
 		Header: Header{

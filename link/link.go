@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"net"
 	"nt-simulator/address"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
@@ -27,36 +26,9 @@ type Link struct {
 // networkに含まれるnode（hostとかswitchとか含めて）のinterface
 type node interface {
 	NodeId() int
-	AddLink(link *Link, ip string)
+	AddLink(link *Link, ip *address.IpAddress)
 	ReceivePacket(p packet.PacketI, l *Link)
-	GetIPAddress() string
-}
-
-type BaseNode struct {
-	nodeId int
-	links  []*Link
-	*address.Address
-	nes *nteventsched.NtEventSched
-}
-
-func NewBaseNode(nodeId int, nes *nteventsched.NtEventSched, macaddress string, ipaddress string) *BaseNode {
-	return &BaseNode{nodeId: nodeId, nes: nes, Address: address.NewAddress(macaddress, ipaddress)}
-}
-
-func (b *BaseNode) GetLinks() []*Link {
-	return b.links
-}
-
-func (b *BaseNode) SetLinks(links []*Link) {
-	b.links = links
-}
-
-func (b *BaseNode) NodeId() int {
-	return b.nodeId
-}
-
-func (b *BaseNode) GetNES() *nteventsched.NtEventSched {
-	return b.nes
+	GetIPAddresses() []*address.IpAddress
 }
 
 // linkのqueueに突っ込むパケットとか
@@ -195,7 +167,7 @@ func (l *Link) subtractFromQueueTime(from_node node, packetTransferTime float64)
 	}
 }
 
-func setupLinkIps(nodeX node, nodeY node) (string, string) {
+func setupLinkIps(nodeX node, nodeY node) (*address.IpAddress, *address.IpAddress) {
 	// ノードから利用可能なIPアドレスリストを取得
 	ipListX := getAvailableIPList(nodeX)
 	ipListY := getAvailableIPList(nodeY)
@@ -207,29 +179,17 @@ func setupLinkIps(nodeX node, nodeY node) (string, string) {
 	return selectedIPX, selectedIPY
 }
 
-func getAvailableIPList(node node) []string {
-	return []string{node.GetIPAddress()}
+func getAvailableIPList(node node) []*address.IpAddress {
+	return node.GetIPAddresses()
 }
 
-func selectCompatibleIp(ipListX []string, ipListY []string) (string, string) {
+func selectCompatibleIp(ipListX []*address.IpAddress, ipListY []*address.IpAddress) (*address.IpAddress, *address.IpAddress) {
 	for _, ipCIDRX := range ipListX {
 		for _, ipCIDRY := range ipListY {
-			fmt.Printf(ipCIDRX)
-			fmt.Printf(ipCIDRY)
-			if isCompatible(ipCIDRX, ipCIDRY) {
+			if ipCIDRY.IsSameNetwork(ipCIDRY) {
 				return ipCIDRX, ipCIDRY
 			}
 		}
 	}
 	panic("互換性のあるipアドレスのペアが見つかりませんでした")
-}
-
-// 2つのIPアドレスが同じネットワークに属するかどうか
-func isCompatible(ipCIDRX string, ipCIDRY string) bool {
-	ip1, net1, err1 := net.ParseCIDR(ipCIDRX)
-	ip2, net2, err2 := net.ParseCIDR(ipCIDRY)
-	if err1 != nil || err2 != nil {
-		return false
-	}
-	return net1.Contains(ip2) && net2.Contains(ip1)
 }

@@ -3,20 +3,28 @@ strict graph {
 
 	"1" [  weight=0 ];
 
-	"1" -- "5" [ color="green", label="0.1 Mbps 0.001 s
+	"1" -- "2" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00",  weight=0 ];
 
-	"2" [  weight=0 ];
+	"2" [ fillcolor="blue", style="filled",  weight=0 ];
 
-	"2" -- "5" [ color="green", label="0.1 Mbps 0.001 s
+	"2" -- "1" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00",  weight=0 ];
 
-	"5" [ fillcolor="red", style="filled",  weight=0 ];
-
-	"5" -- "1" [ color="green", label="0.1 Mbps 0.001 s
+	"2" -- "3" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00",  weight=0 ];
 
-	"5" -- "2" [ color="green", label="0.1 Mbps 0.001 s
+	"3" [ fillcolor="blue", style="filled",  weight=0 ];
+
+	"3" -- "2" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00",  weight=0 ];
+
+	"3" -- "4" [ color="green", label="0.1 Mbps 0.001 s
+", penwidth="5.00",  weight=0 ];
+
+	"4" [  weight=0 ];
+
+	"4" -- "3" [ color="green", label="0.1 Mbps 0.001 s
 ", penwidth="5.00",  weight=0 ];
 
 }
