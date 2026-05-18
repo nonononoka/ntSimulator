@@ -42,6 +42,7 @@ type linkq []*packetWithQueueTime
 
 func NewLink(nodeX node, nodeY node, bandwidth float64, delay float64, packetLoss float64, nes *nteventsched.NtEventSched) *Link {
 	ipX, ipY := setupLinkIps(nodeX, nodeY)
+	fmt.Printf("%v %v\n", nodeX.NodeId(), nodeY.NodeId())
 	nes.AddEdge(nodeX.NodeId(), nodeY.NodeId(), fmt.Sprintf("%v Mbps %v s\n", bandwidth/1000000, delay), bandwidth, delay)
 	l := Link{nodeX: nodeX, nodeY: nodeY, bandwidth: bandwidth, delay: delay, packetLoss: packetLoss, nes: nes}
 	nodeX.AddLink(&l, ipX)

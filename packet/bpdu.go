@@ -6,25 +6,19 @@ import (
 	"nt-simulator/address"
 )
 
-type BPDUPayload struct {
-	RootID   int     `json:"rootID"`
-	BridgeID int     `json:"bridgeID"`
-	PathCost float64 `json:"pathCost"`
-}
-
 // Packetをembedding．こうすることで自動的にPacketI interfaceを満たす
 type BPDU struct {
 	Packet
 }
 
-func (b *BPDU) ParsePayload() (BPDUPayload, error) {
-	var bp BPDUPayload
-	err := json.Unmarshal([]byte(b.Payload), &bp)
-	return bp, err
+type bpduPayload struct {
+	RootID   int     `json:"rootID"`
+	BridgeID int     `json:"bridgeID"`
+	PathCost float64 `json:"pathCost"`
 }
 
 func NewBPDU(s *address.MacAddress, d *address.MacAddress, ttl int, currentTime float64, rootID int, bridgeID int, pathCost float64) *BPDU {
-	b, err := json.Marshal(BPDUPayload{RootID: rootID, BridgeID: bridgeID, PathCost: pathCost})
+	b, err := json.Marshal(bpduPayload{RootID: rootID, BridgeID: bridgeID, PathCost: pathCost})
 	if err != nil {
 		panic(fmt.Sprintf("BPDU payload marshal error: %v", err))
 	}
@@ -34,3 +28,10 @@ func NewBPDU(s *address.MacAddress, d *address.MacAddress, ttl int, currentTime 
 		Packet: *NewPacket(s, d, nil, nil, ttl, 20, len(payload), currentTime, payload),
 	}
 }
+
+func (b *BPDU) ParsePayload() (bpduPayload, error) {
+	var bp bpduPayload
+	err := json.Unmarshal([]byte(b.Payload), &bp)
+	return bp, err
+}
+
