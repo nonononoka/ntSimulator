@@ -54,6 +54,17 @@ func (nes *NtEventSched) Run() {
 	}
 }
 
+func (nes *NtEventSched) RunUntil(endTime float64) {
+	for nes.events.Len() > 0 {
+		event := heap.Pop(&nes.events).(*Event)
+		nes.CurrentTime = event.eventTime
+		if(nes.CurrentTime > endTime){
+			return
+		}
+		event.callback(event.args...)
+	}
+}
+
 func (nes *NtEventSched) ScheduleEvent(eventTime float64, callback func(args ...any), args ...any) {
 	heap.Push(&nes.events, &Event{eventTime: eventTime, eventId: nes.eventId, callback: callback, args: args})
 	nes.eventId += 1

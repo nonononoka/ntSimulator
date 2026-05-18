@@ -22,17 +22,6 @@ type Header struct {
 	FragmentOffset int
 }
 
-type PacketI interface {
-	SetArrived(time float64)
-	ArrivalTime() float64
-	CreationTime() float64
-	PrintPacket()
-	GetHeader() Header
-	GetSize() int
-	GetId() string
-	GetPayload() string
-}
-
 type Packet struct {
 	Header       Header
 	Payload      string
@@ -97,3 +86,5 @@ func (p *Packet) GetHeader() Header  { return p.Header }
 func (p *Packet) GetSize() int       { return p.Size }
 func (p *Packet) GetId() string      { return p.Id }
 func (p *Packet) GetPayload() string { return p.Payload }
+func (p *Packet) DecrementTTL() {p.Header.ttl = p.Header.ttl - 1}
+func (p *Packet) GetTTL() int {return p.Header.ttl}
