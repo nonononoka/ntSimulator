@@ -34,4 +34,3 @@ func (b *BPDU) ParsePayload() (bpduPayload, error) {
 	err := json.Unmarshal([]byte(b.Payload), &bp)
 	return bp, err
 }
-

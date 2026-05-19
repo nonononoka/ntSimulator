@@ -24,8 +24,8 @@ type host struct {
 	receivedBytes int
 }
 
-func (n *host) ArrivedCount() int   { return n.arrivedCount }
-func (n *host) ReceivedBytes() int  { return n.receivedBytes }
+func (n *host) ArrivedCount() int  { return n.arrivedCount }
+func (n *host) ReceivedBytes() int { return n.receivedBytes }
 
 func NewHost(nodeId int, macAddress string, ipAddress string, mtu int, nes *nteventsched.NtEventSched) *host {
 	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packet.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(macAddress),

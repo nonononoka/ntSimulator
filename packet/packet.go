@@ -86,5 +86,5 @@ func (p *Packet) GetHeader() Header  { return p.Header }
 func (p *Packet) GetSize() int       { return p.Size }
 func (p *Packet) GetId() string      { return p.Id }
 func (p *Packet) GetPayload() string { return p.Payload }
-func (p *Packet) DecrementTTL() {p.Header.ttl = p.Header.ttl - 1}
-func (p *Packet) GetTTL() int {return p.Header.ttl}
+func (p *Packet) DecrementTTL()      { p.Header.ttl = p.Header.ttl - 1 }
+func (p *Packet) GetTTL() int        { return p.Header.ttl }

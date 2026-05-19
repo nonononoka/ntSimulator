@@ -9,6 +9,6 @@ type PacketI interface {
 	GetSize() int
 	GetId() string
 	GetPayload() string
-	DecrementTTL() 
+	DecrementTTL()
 	GetTTL() int
 }

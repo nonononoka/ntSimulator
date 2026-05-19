@@ -41,7 +41,7 @@ type NtEventSched struct {
 	CurrentTime float64
 	eventId     int
 	logEnabled  bool
-	verbose     bool
+	Verbose     bool
 	packetLogs  map[string]*packetLog
 	*NetworkGraph
 }
@@ -58,7 +58,7 @@ func (nes *NtEventSched) RunUntil(endTime float64) {
 	for nes.events.Len() > 0 {
 		event := heap.Pop(&nes.events).(*Event)
 		nes.CurrentTime = event.eventTime
-		if(nes.CurrentTime > endTime){
+		if nes.CurrentTime > endTime {
 			return
 		}
 		event.callback(event.args...)
@@ -75,7 +75,7 @@ func NewNtEventSched(logEnabled bool, verbose bool) *NtEventSched {
 	sched := &NtEventSched{
 		NetworkGraph: newNetworkGraph(),
 		logEnabled:   logEnabled,
-		verbose:      verbose,
+		Verbose:      verbose,
 		packetLogs:   make(map[string]*packetLog),
 	}
 	return sched

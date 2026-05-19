@@ -58,7 +58,7 @@ func (nes *NtEventSched) LogPacketInfo(p packet.PacketI, eventType string, nodeI
 	}
 	nes.packetLogs[p.GetId()].events = append(nes.packetLogs[p.GetId()].events, &eventInfo)
 
-	if nes.verbose {
+	if nes.Verbose {
 		fmt.Printf("time: %v, node: %v, event: %s, packet: %v, src: %s, dst: %s\n",
 			nes.CurrentTime, nodeId, eventType, p.GetId(), p.GetHeader().SourceMac, p.GetHeader().DestinationMac)
 	}
