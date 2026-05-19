@@ -16,17 +16,17 @@ func main() {
 	r4 := router.NewRouter(5, []string{"10.1.4.2/24", "10.2.4.2/24"}, nes)
 	n2 := host.NewHost(6, "00:1A:2B:3C:4D:5F", "192.168.2.1/24", 1500, nes)
 
-	// s1 := nswitch.NewSwitch(nes, 5, "192.168.1.3/24", "00:1A:2B:3C:4D:5E")
-	// s2 := nswitch.NewSwitch(nes, 6, "192.170.1.2", "00:1A:2B:3C:3D:5E")
-	// s3 := nswitch.NewSwitch(nes, 7, "192.171.1.2", "00:1A:2B:3C:2D:5E")
-	// s4 := nswitch.NewSwitch(nes, 8, "192.172.1.2", "00:1A:2B:3C:1D:6E")
-
 	l1 := link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
 	l2 := link.NewLink(r2, n2, 100000, 0.001, 0.0, nes)
 	l3 := link.NewLink(r1, r3, 200000, 0.001, 0.0, nes)
 	l4 := link.NewLink(r1, r4, 100000, 0.001, 0.0, nes)
 	l5 := link.NewLink(r2, r3, 200000, 0.001, 0.0, nes)
 	l6 := link.NewLink(r2, r4, 100000, 0.001, 0.0, nes)
+
+	// s1 := nswitch.NewSwitch(nes, 5, "192.168.1.3/24", "00:1A:2B:3C:4D:5E")
+	// s2 := nswitch.NewSwitch(nes, 6, "192.170.1.2", "00:1A:2B:3C:3D:5E")
+	// s3 := nswitch.NewSwitch(nes, 7, "192.171.1.2", "00:1A:2B:3C:2D:5E")
+	// s4 := nswitch.NewSwitch(nes, 8, "192.172.1.2", "00:1A:2B:3C:1D:6E")
 
 	l1.PrintLink()
 	l2.PrintLink()

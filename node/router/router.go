@@ -136,6 +136,22 @@ func (r *router) GetIPAddresses() []*address.IpAddress {
 	return addresses
 }
 
+func (r *router) GetTopologyRouterIds() []int {
+	ids := make([]int, 0, len(r.topologyDatabase))
+	for id := range r.topologyDatabase {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func (r *router) GetTopologyLinkCount(routerId int) (int, bool) {
+	entry, ok := r.topologyDatabase[routerId]
+	if !ok {
+		return 0, false
+	}
+	return len(entry.linkStateInfos), true
+}
+
 func (r *router) GetNeighborIds() []int {
 	ids := make([]int, 0, len(r.neighbors))
 	for id := range r.neighbors {
