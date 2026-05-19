@@ -42,9 +42,10 @@ func (nes *NtEventSched) LogPacketInfo(p packet.PacketI, eventType string, nodeI
 		}
 	}
 
-	if eventType == "arrived" {
+	switch eventType {
+	case "arrived":
 		nes.packetLogs[p.GetId()].arrivalTime = nes.CurrentTime
-	} else if eventType == "lost" {
+	case "lost":
 		nes.packetLogs[p.GetId()].arrivalTime = -1
 	}
 
