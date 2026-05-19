@@ -9,18 +9,18 @@ import (
 // OSPFプロトコルで使われるHelloパケット。
 // ルーターはまずHelloパケットを送信して周囲のルーターを検出する。
 // これでPacketIを自動で満たす
-type HelloP struct{
+type HelloP struct {
 	Packet
 }
 
-type HellopPayload struct{
-	RouterId int `json:"routerID"`
+type HellopPayload struct {
+	RouterId      int     `json:"routerID"`
 	HelloInterval float64 `json:"helloInterval"`
-	Neighbors []int `json:"neighbors"`
+	Neighbors     []int   `json:"neighbors"`
 }
 
-func NewHelloP(s *address.MacAddress, sourceip *address.IpAddress, currentTime float64, routerId int, helloInterval float64, neighbors []int) *HelloP{
-	p, err := json.Marshal(HellopPayload{ RouterId: routerId, HelloInterval: helloInterval, Neighbors: neighbors})
+func NewHelloP(s *address.MacAddress, sourceip *address.IpAddress, currentTime float64, routerId int, helloInterval float64, neighbors []int) *HelloP {
+	p, err := json.Marshal(HellopPayload{RouterId: routerId, HelloInterval: helloInterval, Neighbors: neighbors})
 	if err != nil {
 		panic(fmt.Sprintf("BPDU payload marshal error: %v", err))
 	}
@@ -37,25 +37,27 @@ func (h *HelloP) ParsePayload() (HellopPayload, error) {
 	return hp, err
 }
 
-func (hp1 HellopPayload) Equals(hp2 HellopPayload) bool{
-	if hp1.RouterId != hp2.RouterId{
+func (hp1 HellopPayload) Equals(hp2 HellopPayload) bool {
+	if hp1.RouterId != hp2.RouterId {
 		return false
 	}
-	if hp1.HelloInterval != hp2.HelloInterval{
+	if hp1.HelloInterval != hp2.HelloInterval {
 		return false
 	}
-	if len(hp1.Neighbors) != len(hp2.Neighbors){
+	if len(hp1.Neighbors) != len(hp2.Neighbors) {
 		return false
 	}
-	for i, _ := range(hp1.Neighbors){
-		if(hp1.Neighbors[i] != hp2.Neighbors[i]){
-			return false
+	counts := make(map[int]int)
+	for _, x := range hp1.Neighbors {
+		counts[x]++
+	}
+
+	// bのスライスの要素で引き算していく
+	for _, x := range hp2.Neighbors {
+		if counts[x] == 0 {
+			return false // aに存在しない、または個数が合わない
 		}
+		counts[x]--
 	}
 	return true
 }
-
-
-
-
-
