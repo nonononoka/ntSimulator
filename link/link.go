@@ -8,9 +8,12 @@ import (
 	"nt-simulator/address"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
+
+	"github.com/google/uuid"
 )
 
 type Link struct {
+	id string
 	nodeX              node
 	nodeY              node
 	bandwidth          float64
@@ -44,7 +47,7 @@ func NewLink(nodeX node, nodeY node, bandwidth float64, delay float64, packetLos
 	ipX, ipY := setupLinkIps(nodeX, nodeY)
 	fmt.Printf("%v %v\n", nodeX.NodeId(), nodeY.NodeId())
 	nes.AddEdge(nodeX.NodeId(), nodeY.NodeId(), fmt.Sprintf("%v Mbps %v s\n", bandwidth/1000000, delay), bandwidth, delay)
-	l := Link{nodeX: nodeX, nodeY: nodeY, bandwidth: bandwidth, delay: delay, packetLoss: packetLoss, nes: nes}
+	l := Link{id: uuid.New().String(),nodeX: nodeX, nodeY: nodeY, bandwidth: bandwidth, delay: delay, packetLoss: packetLoss, nes: nes}
 	nodeX.AddLink(&l, ipX)
 	nodeY.AddLink(&l, ipY)
 	return &l
@@ -68,6 +71,10 @@ func (lq *linkq) Pop() any {
 	item := old[n-1]
 	*lq = old[:n-1]
 	return item
+}
+
+func (l *Link) GetId() string{
+	return l.id
 }
 
 func (l *Link) PrintLink() {

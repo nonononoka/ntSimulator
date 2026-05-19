@@ -30,6 +30,11 @@ type neighborInfo struct {
 	info          packet.HellopPayload
 }
 
+type topologyEntry struct{
+	sequenceNumber int
+	linkStateInfos map[string]packet.LinkStateInfo // linkごとのstate情報
+}
+
 type router struct {
 	*basenode.BaseNode
 	availableIps  map[*address.IpAddress]bool       // CIDR表記のIPアドレスを辞書に変換して，使用状況を記録
@@ -37,6 +42,10 @@ type router struct {
 	routingTable  map[*address.IpAddress]entry
 	helloInterval float64
 	neighbors     map[int]*neighborInfo
+	lsaSequenceNumber int
+	lsaInterval float64
+	isTopologyInitialized bool
+	topologyDatabase map[int]topologyEntry // 各router idのリンク情報を管理
 }
 
 func NewRouter(nodeId int, ipAddreses []string, nes *nteventsched.NtEventSched) *router {
@@ -51,9 +60,13 @@ func NewRouter(nodeId int, ipAddreses []string, nes *nteventsched.NtEventSched) 
 		routingTable:  make(map[*address.IpAddress]entry),
 		helloInterval: 10.0,
 		neighbors:     make(map[int]*neighborInfo),
+		lsaInterval: 10.0,
+		isTopologyInitialized: false,
+		topologyDatabase: make(map[int]topologyEntry), // ルーターIDごとのLsaの情報を管理
 	}
 	nes.AddNode(r)
 	r.scheduleHelloPacket()
+	r.scheduleLsaPacket()
 	return r
 }
 
@@ -74,6 +87,58 @@ func (r *router) AddRoute(destinationCIDR string, nexthop string, link *link.Lin
 		nextHopAddr = address.NewIPAddress(nexthop)
 	}
 	r.routingTable[address.NewIPAddress(destinationCIDR)] = entry{nexthop: nextHopAddr, link: link}
+}
+
+func (r *router) ReceivePacket(p packet.PacketI, receivedLink *link.Link) {
+	if helloP, ok := p.(*packet.HelloP); ok {
+		r.GetNES().LogPacketInfo(p, "router hello received", r.NodeId())
+		r.receiveHelloPacket(helloP, receivedLink)
+		return
+	}
+
+	if lsaP, ok := p.(*packet.LsaP); ok{
+		r.GetNES().LogPacketInfo(p, "router lsa received", r.NodeId())
+		r.receiveLsaPacket(lsaP, receivedLink)
+		return
+	}
+
+	p.DecrementTTL()
+	if p.GetTTL() <= 0 {
+		r.GetNES().LogPacketInfo(p, "dropped due to TTL expired", r.NodeId())
+		return
+	}
+
+	r.GetNES().LogPacketInfo(p, "router received", r.NodeId())
+
+	// 普通のパケットの処理
+	destIp := p.GetHeader().DestIp
+	for _, interfaceCIDR := range r.interfaces {
+		if destIp.IsSameNetwork(interfaceCIDR) {
+			if destIp.String() == interfaceCIDR.String() { // パケットがルーター宛
+				r.GetNES().LogPacketInfo(p, "arrived to router", r.NodeId())
+			} else { // ルーター宛ではないが，そのルーターと同じネットワークだった場合
+				r.forwardPacket(p)
+			}
+			return
+		}
+	}
+	r.forwardPacket(p)
+}
+
+func (r *router) GetIPAddresses() []*address.IpAddress {
+	var addresses []*address.IpAddress
+	for ad, _ := range r.availableIps {
+		addresses = append(addresses, ad)
+	}
+	return addresses
+}
+
+func (r *router) GetNeighborIds() []int {
+	ids := make([]int, 0, len(r.neighbors))
+	for id := range r.neighbors {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 func (r *router) markIpAsUsed(ipAddress *address.IpAddress) {
@@ -123,42 +188,6 @@ func (r *router) forwardPacket(p packet.PacketI) {
 	// TODO：デフォルトルートの実装
 }
 
-func (r *router) ReceivePacket(p packet.PacketI, receivedLink *link.Link) {
-	r.GetNES().LogPacketInfo(p, "router received", r.NodeId())
-	if helloP, ok := p.(*packet.HelloP); ok {
-		r.receiveHelloPacket(helloP, receivedLink)
-		return
-	}
-
-	p.DecrementTTL()
-	if p.GetTTL() <= 0 {
-		r.GetNES().LogPacketInfo(p, "dropped due to TTL expired", r.NodeId())
-		return
-	}
-
-	// 普通のパケットの処理
-	destIp := p.GetHeader().DestIp
-	for _, interfaceCIDR := range r.interfaces {
-		if destIp.IsSameNetwork(interfaceCIDR) {
-			if destIp.String() == interfaceCIDR.String() { // パケットがルーター宛
-				r.GetNES().LogPacketInfo(p, "arrived to router", r.NodeId())
-			} else { // ルーター宛ではないが，そのルーターと同じネットワークだった場合
-				r.forwardPacket(p)
-			}
-			return
-		}
-	}
-	r.forwardPacket(p)
-}
-
-func (r *router) GetIPAddresses() []*address.IpAddress {
-	var addresses []*address.IpAddress
-	for ad, _ := range r.availableIps {
-		addresses = append(addresses, ad)
-	}
-	return addresses
-}
-
 func (r *router) scheduleHelloPacket() {
 	randomDelay := rand.Float64() * 0.1
 	r.GetNES().ScheduleEvent(r.GetNES().CurrentTime+randomDelay, func(args ...any) { r.sendHelloPacket() })
@@ -179,10 +208,59 @@ func (r *router) sendHelloPacket() {
 	})
 }
 
+func (r *router) scheduleLsaPacket(){
+	randomDelay := 0.3 + rand.Float64()*0.2
+	r.GetNES().ScheduleEvent(r.GetNES().CurrentTime+randomDelay, func(args ...any) { r.sendLsaPacket() })
+}
+
+func (r *router) sendLsaPacket(){
+	seqNumber := r.incrementLsaSequence()
+	linkStateInfos := r.getLinkStateInfos()
+
+	for link, ipAddress := range r.interfaces{
+		lsaP := packet.NewLsaP(
+			address.NewMacAddress("00:00:00:00:00:00"), ipAddress, r.GetNES().CurrentTime, r.NodeId(), seqNumber, linkStateInfos)
+			link.EnqueuePacket(lsaP, r)
+	}
+
+	r.GetNES().ScheduleEvent(r.GetNES().CurrentTime+r.lsaInterval, func(args ...any) {
+		r.sendLsaPacket()
+	})
+}
+
+func (r *router) getLinkStateInfos() map[string]packet.LinkStateInfo{
+	linkStateInfos := make(map[string]packet.LinkStateInfo)
+	for l, ipAddress := range r.interfaces {
+		linkStateInfos[l.GetId()] = packet.LinkStateInfo{IpAddress: ipAddress.String(), Cost: l.GetLinkCost()}
+	}
+	return linkStateInfos
+}
+
+func (r *router) incrementLsaSequence() int{
+	r.lsaSequenceNumber += 1
+	return r.lsaSequenceNumber
+}
+
+func (r *router) floodLsa(p *packet.LsaP){
+	// 受信したLSAパケットを他のルーターにフラッドする
+	lp, err := p.ParsePayload()
+	if err != nil {
+		fmt.Printf("Lsa parse error: %v\n", err)
+		return
+	}
+	routerId := lp.RouterId
+	
+	for link := range(r.interfaces){
+		if link.NodeX().NodeId() != routerId && link.NodeY().NodeId() != routerId{
+			link.EnqueuePacket(p, r)
+		}
+	}
+}
+
 func (r *router) receiveHelloPacket(p *packet.HelloP, receivedLink *link.Link) {
 	hp, err := p.ParsePayload()
 	if err != nil {
-		fmt.Printf("BPDU parse error: %v\n", err)
+		fmt.Printf("Hello parse error: %v\n", err)
 		return
 	}
 	routerId := hp.RouterId
@@ -216,24 +294,81 @@ func (r *router) receiveHelloPacket(p *packet.HelloP, receivedLink *link.Link) {
 	if newNeighbor {
 		r.printNeighborInfo()
 	} else {
-		fmt.Printf("%v Helloパケットを受信しましたが、隣接ルーターの情報は更新されていません。ルーターID: %v \n", r.GetNES().CurrentTime, r.NodeId())
+		// fmt.Printf("%v Helloパケットを受信しましたが、隣接ルーターの情報は更新されていません。ルーターID: %v \n", r.GetNES().CurrentTime, r.NodeId())
 	}
 }
 
-func (r *router) GetNeighborIds() []int {
-	ids := make([]int, 0, len(r.neighbors))
-	for id := range r.neighbors {
-		ids = append(ids, id)
+func (r *router) receiveLsaPacket(p *packet.LsaP, receivedLink *link.Link){
+	lp, err := p.ParsePayload()
+	if err != nil {
+		fmt.Printf("Lsa parse error: %v\n", err)
+		return
 	}
-	return ids
+
+	if !r.isTopologyInitialized{
+		r.isTopologyInitialized = true
+		r.initializeTopologyDatabase()
+	}
+
+	routerId := lp.RouterId
+	lsaInfo := lp.LinkStateInfos
+	seqNumber := lp.SequenceNumber
+	now := r.GetNES().CurrentTime
+
+	var currentLsaInfo topologyEntry 
+	if _,ok := r.topologyDatabase[routerId]; !ok{
+		currentLsaInfo = topologyEntry{}
+	}else{
+		currentLsaInfo = r.topologyDatabase[routerId]
+	}
+
+	// 受信したLSAが新しい情報を持っている場合、トポロジーデータベースを更新
+	if seqNumber > currentLsaInfo.sequenceNumber{
+		r.topologyDatabase[routerId] = topologyEntry{
+			sequenceNumber: seqNumber,
+			linkStateInfos: lsaInfo,
+		}
+		r.printTopologyDatabase()
+		r.floodLsa(p)
+	}else{
+		fmt.Printf("%v 古いLSAを受信しました %v\n", now, r.NodeId())
+	}
+}
+
+func (r *router) initializeTopologyDatabase(){
+	linkStateInfos := make(map[string]packet.LinkStateInfo)
+	for link, ipAddress := range(r.interfaces){
+		linkStateInfos[link.GetId()] = packet.LinkStateInfo{IpAddress: ipAddress.String(), Cost: link.GetLinkCost()}
+	}
+
+	r.topologyDatabase[r.NodeId()] = topologyEntry{sequenceNumber: 0, linkStateInfos: linkStateInfos}
 }
 
 func (r *router) printNeighborInfo() {
-	for routerId, neighborInfo := range r.neighbors {
-		fmt.Printf("ルーターID: %v \n", routerId)
-		fmt.Printf("最後のhello受信時刻: %v\n", neighborInfo.lastHelloTime)
-		fmt.Printf("隣接ルーターへのリンク：リンク %v <-> %v\n", neighborInfo.link.NodeX().NodeId(), neighborInfo.link.NodeY().NodeId())
-		fmt.Printf("追加情報 neighbors：")
-		fmt.Println(neighborInfo.info.Neighbors)
+	// for routerId, neighborInfo := range r.neighbors {
+	// 	fmt.Printf("ルーターID: %v \n", routerId)
+	// 	fmt.Printf("最後のhello受信時刻: %v\n", neighborInfo.lastHelloTime)
+	// 	fmt.Printf("隣接ルーターへのリンク：リンク %v <-> %v\n", neighborInfo.link.NodeX().NodeId(), neighborInfo.link.NodeY().NodeId())
+	// 	fmt.Printf("追加情報 neighbors：")
+	// 	fmt.Println(neighborInfo.info.Neighbors)
+	// }
+}
+
+func (r *router) printTopologyDatabase(){
+	fmt.Printf("========== TOPOLOGY DATABASE ==========（ルーター:%v）\n", r.NodeId())
+	for routerID, entry := range r.topologyDatabase {
+		fmt.Printf("Router ID: %d (Seq: %d)\n", routerID, entry.sequenceNumber)
+		
+		if len(entry.linkStateInfos) == 0 {
+			fmt.Println("  [No Link State Information]")
+			continue
+		}
+
+		// 各リンクの情報をループして出力
+		for linkKey, info := range entry.linkStateInfos {
+			fmt.Printf("  - Link [%s]: IP Address = %s, Cost = %.2f\n", 
+				linkKey, info.IpAddress, info.Cost)
+		}
 	}
+	fmt.Println("=======================================")
 }

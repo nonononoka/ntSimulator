@@ -22,7 +22,7 @@ type HellopPayload struct {
 func NewHelloP(s *address.MacAddress, sourceip *address.IpAddress, currentTime float64, routerId int, helloInterval float64, neighbors []int) *HelloP {
 	p, err := json.Marshal(HellopPayload{RouterId: routerId, HelloInterval: helloInterval, Neighbors: neighbors})
 	if err != nil {
-		panic(fmt.Sprintf("BPDU payload marshal error: %v", err))
+		panic(fmt.Sprintf("Hello payload marshal error: %v", err))
 	}
 	payload := string(p)
 

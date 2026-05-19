@@ -52,7 +52,7 @@ func main() {
 	// linkを繋ぐ前
 	// s1.PrintLinkStates()
 	// s2.PrintLinkStates()
-	nes.RunUntil(50.0)
+	nes.RunUntil(20.0)
 	// nes.PrintPacketLogs()
 	// nes.GenerateSummary()
 	// s1.PrintForwadingTable()
