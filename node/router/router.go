@@ -220,6 +220,14 @@ func (r *router) receiveHelloPacket(p *packet.HelloP, receivedLink *link.Link){
 	}
 }
 
+func (r *router) GetNeighborIds() []int {
+	ids := make([]int, 0, len(r.neighbors))
+	for id := range r.neighbors {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 func (r *router) printNeighborInfo(){
 	for routerId, neighborInfo := range(r.neighbors){
 		fmt.Printf("ルーターID: %v \n", routerId)

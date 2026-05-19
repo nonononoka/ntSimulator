@@ -20,7 +20,12 @@ type host struct {
 	fragmentedPackets map[string]map[int]packet.PacketI
 	*address.MacAddress
 	*address.IpAddress
+	arrivedCount  int
+	receivedBytes int
 }
+
+func (n *host) ArrivedCount() int   { return n.arrivedCount }
+func (n *host) ReceivedBytes() int  { return n.receivedBytes }
 
 func NewHost(nodeId int, macAddress string, ipAddress string, mtu int, nes *nteventsched.NtEventSched) *host {
 	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packet.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(macAddress),
@@ -61,6 +66,8 @@ func (n *host) ReceivePacket(p packet.PacketI, l *link.Link) {
 	if p.GetHeader().DestinationMac.String() == n.MacAddress.String() && p.GetHeader().DestIp.String() == n.IpAddress.String() {
 		n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
 		p.SetArrived(n.GetNES().CurrentTime)
+		n.arrivedCount++
+		n.receivedBytes += len(p.GetPayload())
 
 		if p.GetHeader().FragmentFlags.MoreFragment {
 			n.storeFragment(p)

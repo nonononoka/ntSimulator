@@ -47,7 +47,12 @@ func (s *nswitch) AddLink(link *link.Link, ip *address.IpAddress) {
 		}
 	}
 	s.SetLinks(append(s.GetLinks(), link))
-	s.linkStates[link] = "initial"
+	// ルートブリッジは即座にフォワーディング状態にする（BPDUを待たない）
+	if s.isRoot {
+		s.linkStates[link] = "forwarding"
+	} else {
+		s.linkStates[link] = "initial"
+	}
 	s.sendBPDU()
 }
 
@@ -90,6 +95,10 @@ func (s *nswitch) PrintLinkStates() {
 
 func (s *nswitch) GetIPAddresses() []*address.IpAddress {
 	return []*address.IpAddress{s.IpAddress}
+}
+
+func (s *nswitch) GetLinkState(l *link.Link) string {
+	return s.linkStates[l]
 }
 
 func (s *nswitch) sendBPDU() {
