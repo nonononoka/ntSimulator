@@ -76,6 +76,7 @@ func (s *router) NodeColor() string { return "blue" }
 func (r *router) AddLink(link *link.Link, ipAddress *address.IpAddress) {
 	if _, ok := r.interfaces[link]; !ok {
 		r.interfaces[link] = ipAddress
+		r.markIpAsUsed(ipAddress)
 	}
 }
 
@@ -127,8 +128,10 @@ func (r *router) ReceivePacket(p packet.PacketI, receivedLink *link.Link) {
 
 func (r *router) GetIPAddresses() []*address.IpAddress {
 	var addresses []*address.IpAddress
-	for ad, _ := range r.availableIps {
-		addresses = append(addresses, ad)
+	for ad, used := range r.availableIps {
+		if !used {
+			addresses = append(addresses, ad)
+		}
 	}
 	return addresses
 }

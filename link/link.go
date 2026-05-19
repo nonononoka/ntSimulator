@@ -194,7 +194,7 @@ func getAvailableIPList(node node) []*address.IpAddress {
 func selectCompatibleIp(ipListX []*address.IpAddress, ipListY []*address.IpAddress) (*address.IpAddress, *address.IpAddress) {
 	for _, ipCIDRX := range ipListX {
 		for _, ipCIDRY := range ipListY {
-			if ipCIDRY.IsSameNetwork(ipCIDRY) {
+			if ipCIDRX.IsSameNetwork(ipCIDRY) {
 				return ipCIDRX, ipCIDRY
 			}
 		}
