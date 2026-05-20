@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"nt-simulator/address"
 	"nt-simulator/link"
@@ -125,6 +126,47 @@ func (r *router) printTopologyDatabase() {
 	fmt.Println("=======================================")
 }
 
-func (r *router) calculateShortestPaths(startRouterId int) {
+type gNode struct {
+	cost   int
+	nodeId int
+}
 
+type heapq []*gNode
+
+func (lq heapq) Len() int { return len(lq) }
+
+func (lq heapq) Less(i, j int) bool {
+	return lq[i].cost < lq[j].cost
+}
+
+func (lq heapq) Swap(i, j int) { lq[i], lq[j] = lq[j], lq[i] }
+
+func (lq *heapq) Push(x any) {
+	*lq = append(*lq, x.(*gNode))
+}
+
+func (lq *heapq) Pop() *gNode {
+	old := *lq
+	n := len(old)
+	item := old[n-1]
+	*lq = old[:n-1]
+	return item
+}
+
+func (r *router) calculateShortestPaths(startRouterId int) {
+	shortestPaths = make(map[int]float64)
+	previousNodes := make(map[int]int) // 各ルーターの前に辿るルーターを記録
+	for r := range r.topologyDatabase {
+		shortestPaths[r] = math.Inf(1)
+	}
+	shortestPaths[startRouterId] = 0
+	queue := &heapq{&gNode{cost: 0, nodeId: startRouterId}}
+
+	for queue.Len() != 0 {
+		currentNode := queue.Pop()
+
+		for link, linkInfo := range r.topologyDatabase[currentNode.nodeId].linkStateInfos {
+			// このlinkからいけるrouterを
+		}
+	}
 }
