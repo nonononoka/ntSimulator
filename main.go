@@ -10,18 +10,17 @@ import (
 func main() {
 	nes := nteventsched.NewNtEventSched(true, true)
 	n1 := host.NewHost(1, "00:1A:2B:3C:4D:5E", "192.168.1.1/24", 1500, nes)
-	r1 := router.NewRouter(2, []string{"192.168.1.254/24", "10.1.3.1/24", "10.1.4.1/24"}, nes)
-	r2 := router.NewRouter(3, []string{"192.168.2.254/24", "10.2.3.1/24", "10.2.4.1/24"}, nes)
-	r3 := router.NewRouter(4, []string{"10.1.3.2/24", "10.2.3.2/24"}, nes)
-	r4 := router.NewRouter(5, []string{"10.1.4.2/24", "10.2.4.2/24"}, nes)
+	r1 := router.NewRouter(2, []string{"192.168.1.254/24", "10.1.2.1/24"}, nes)
+	r2 := router.NewRouter(3, []string{"10.1.2.2/24", "10.2.3.2/24"}, nes)
+	r3 := router.NewRouter(4, []string{"10.2.3.3/24", "10.3.4.3/24"}, nes)
+	r4 := router.NewRouter(5, []string{"192.168.2.254/24", "10.3.4.4/24"}, nes)
 	n2 := host.NewHost(6, "00:1A:2B:3C:4D:5F", "192.168.2.1/24", 1500, nes)
 
 	l1 := link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
-	l2 := link.NewLink(r2, n2, 100000, 0.001, 0.0, nes)
-	l3 := link.NewLink(r1, r3, 200000, 0.001, 0.0, nes)
-	l4 := link.NewLink(r1, r4, 100000, 0.001, 0.0, nes)
-	l5 := link.NewLink(r2, r3, 200000, 0.001, 0.0, nes)
-	l6 := link.NewLink(r2, r4, 100000, 0.001, 0.0, nes)
+	l2 := link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)
+	l3 := link.NewLink(r2, r3, 100000, 0.001, 0.0, nes)
+	l4 := link.NewLink(r3, r4, 200000, 0.001, 0.0, nes)
+	l5 := link.NewLink(r4, n2, 100000, 0.001, 0.0, nes)
 
 	// s1 := nswitch.NewSwitch(nes, 5, "192.168.1.3/24", "00:1A:2B:3C:4D:5E")
 	// s2 := nswitch.NewSwitch(nes, 6, "192.170.1.2", "00:1A:2B:3C:3D:5E")
@@ -33,7 +32,6 @@ func main() {
 	l3.PrintLink()
 	l4.PrintLink()
 	l5.PrintLink()
-	l6.PrintLink()
 
 	// r1.AddRoute("192.168.1.0/24", "", l1) // destination, nexthop
 	// r1.AddRoute("192.168.2.0/24", "10.0.0.2/24", l2)

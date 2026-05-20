@@ -2,6 +2,8 @@ package router
 
 import (
 	"fmt"
+	"log"
+	"math"
 	"math/rand/v2"
 	"nt-simulator/address"
 	"nt-simulator/link"
@@ -56,7 +58,7 @@ func (r *router) floodLsa(p *packet.LsaP) {
 	routerId := lp.RouterId
 
 	for link := range r.interfaces {
-		if link.NodeX().NodeId() != routerId && link.NodeY().NodeId() != routerId {
+		if link.NodeX().NodeId() != routerId && link.NodeY().NodeId() != routerId { // 隣人の情報じゃなかったらflood
 			link.EnqueuePacket(p, r)
 		}
 	}
@@ -95,6 +97,10 @@ func (r *router) receiveLsaPacket(p *packet.LsaP, receivedLink *link.Link) {
 		if r.GetNES().Verbose {
 			r.printTopologyDatabase()
 		}
+		// ルーティングテーブルの再計算
+		r.updateRoutingTableWithDijkstra()
+
+		// LSAを近接ルータに再送信
 		r.floodLsa(p)
 	} else {
 		fmt.Printf("%v 古いLSAを受信しました %v\n", now, r.NodeId())
@@ -116,27 +122,27 @@ func (r *router) initializeTopologyDatabase() {
 }
 
 func (r *router) printTopologyDatabase() {
-	fmt.Printf("========== TOPOLOGY DATABASE ==========（ルーター:%v）\n", r.NodeId())
-	for routerID, entry := range r.topologyDatabase {
-		fmt.Printf("Router ID: %d (Seq: %d)\n", routerID, entry.sequenceNumber)
+	// fmt.Printf("========== TOPOLOGY DATABASE ==========（ルーター:%v）\n", r.NodeId())
+	// for routerID, entry := range r.topologyDatabase {
+	// 	fmt.Printf("Router ID: %d (Seq: %d)\n", routerID, entry.sequenceNumber)
 
-		if len(entry.linkStateInfos) == 0 {
-			fmt.Println("  [No Link State Information]")
-			continue
-		}
+	// 	if len(entry.linkStateInfos) == 0 {
+	// 		fmt.Println("  [No Link State Information]")
+	// 		continue
+	// 	}
 
-		// 各リンクの情報をループして出力
-		for _, info := range entry.linkStateInfos {
-			fmt.Printf("  - Link [%v <-> %v]: IP Address = %s, Cost = %.2f\n",
-				info.NodeXId, info.NodeYId, info.IpAddress, info.Cost)
-		}
-	}
+	// 	// 各リンクの情報をループして出力
+	// 	for _, info := range entry.linkStateInfos {
+	// 		fmt.Printf("  - Link [%v <-> %v]: IP Address = %s, Cost = %.2f\n",
+	// 			info.NodeXId, info.NodeYId, info.IpAddress, info.Cost)
+	// 	}
+	// }
 
-	fmt.Println("=======================================")
+	// fmt.Println("=======================================")
 }
 
 type gNode struct {
-	cost   int
+	cost   float64
 	nodeId int
 }
 
@@ -162,20 +168,133 @@ func (lq *heapq) Pop() *gNode {
 	return item
 }
 
-// func (r *router) calculateShortestPaths(startRouterId int) {
-// 	shortestPaths = make(map[int]float64)
-// 	previousNodes := make(map[int]int) // 各ルーターの前に辿るルーターを記録
-// 	for r := range r.topologyDatabase {
-// 		shortestPaths[r] = math.Inf(1)
-// 	}
-// 	shortestPaths[startRouterId] = 0
-// 	queue := &heapq{&gNode{cost: 0, nodeId: startRouterId}}
+func (r *router) calculateShortestPaths(startRouterId int) (map[int]float64, map[int]int) {
+	shortestPaths := make(map[int]float64) // 各ルータごとのstartRouterIdからのcostを記録
+	previousNodes := make(map[int]int)     // 各ルーターの前に辿るルーターを記録
+	for r := range r.topologyDatabase {
+		shortestPaths[r] = math.Inf(1)
+	}
+	shortestPaths[startRouterId] = 0
+	queue := &heapq{&gNode{cost: 0, nodeId: startRouterId}}
 
-// 	for queue.Len() != 0 {
-// 		currentNode := queue.Pop()
+	for queue.Len() != 0 {
+		currentNode := queue.Pop()
 
-// 		for link, linkInfo := range r.topologyDatabase[currentNode.nodeId].linkStateInfos {
-// 			// このlinkからいけるrouterを
-// 		}
-// 	}
-// }
+		for _, linkStateInfo := range r.topologyDatabase[currentNode.nodeId].linkStateInfos {
+			// このlinkで直接繋がっているrouterたちのshortestPathを更新して、更新されたらqueueに突っ込む
+			neighborId := getNeighorRouterId(currentNode.nodeId, linkStateInfo.NodeXId, linkStateInfo.NodeYId)
+			if neighborId == -1 {
+				panic("このlinkはcurrentNodeと繋がっていません")
+			}
+			if _, ok := r.topologyDatabase[neighborId]; ok {
+				newCost := currentNode.cost + linkStateInfo.Cost
+				if newCost < shortestPaths[neighborId] {
+					shortestPaths[neighborId] = newCost
+					previousNodes[neighborId] = currentNode.nodeId
+					queue.Push(&gNode{cost: newCost, nodeId: neighborId})
+				}
+			}
+		}
+	}
+
+	return shortestPaths, previousNodes
+}
+
+func (r *router) updateRoutingTableWithDijkstra() {
+
+	shortestPaths, previousNodes := r.calculateShortestPaths(r.NodeId())
+	tmpRoutingTable := make(map[address.IpAddress]*routingTableEntry)
+
+	// 各routerに行くまでに最初にどこに行ったらいいかをupdateする
+	for destination := range shortestPaths {
+		if destination != r.NodeId() {
+			// このrouterからdestinationに行くにはまずnextHopRouterIdに行く必要がある
+			nextHopRouterId := findInitialHop(destination, previousNodes, r.NodeId())
+			linkToNextHop := r.getLinkToNeighbor(nextHopRouterId)
+
+			for _, linkStateInfo := range r.topologyDatabase[destination].linkStateInfos {
+				destinationIPAddress := address.NewIPAddress(linkStateInfo.IpAddress) // destinationのrouterが持っているipaddress
+				// rとdestinationが同じnetworkだったら、hopは不要になるので-1にする
+				nextHop := nextHopRouterId
+				for _, ip := range r.interfaces {
+					if ip.IsSameNetwork(destinationIPAddress) {
+						nextHop = -1
+					}
+				}
+				tmpRoutingTable[*destinationIPAddress.ConvertToNetworkCIDR()] = &routingTableEntry{nexthop: nextHop, link: linkToNextHop}
+			}
+		}
+	}
+
+	// 自分のinterfaceに接続されているネットワークへのルートを追加
+	for l, ipAddress := range r.interfaces {
+		if _, ok := tmpRoutingTable[*ipAddress.ConvertToNetworkCIDR()]; !ok {
+			tmpRoutingTable[*ipAddress.ConvertToNetworkCIDR()] = &routingTableEntry{link: l}
+		}
+	}
+
+	clear(r.routingTable)
+	for ip, entry := range tmpRoutingTable {
+		r.routingTable[&ip] = *entry
+	}
+
+	PrintRoutingTable(r.routingTable)
+}
+
+func PrintRoutingTable(table map[*address.IpAddress]routingTableEntry) {
+	log.Println("--- ROUTING TABLE LOG START ---")
+
+	if len(table) == 0 {
+		log.Println("  (Table is empty)")
+	}
+
+	for ip, entry := range table {
+		ipStr := "nil"
+		if ip != nil {
+			ipStr = ip.String()
+		}
+
+		// 3. ログに1行で出力
+		log.Printf("DestIP: %-15s -> NextHop(RouterID): %-3d | Via Link: %v <-> %v",
+			ipStr,
+			entry.nexthop,
+			entry.link.NodeX().NodeId(),
+			entry.link.NodeY().NodeId(),
+		)
+	}
+
+	log.Println("--- ROUTING TABLE LOG END ---")
+}
+
+func (r *router) getLinkToNeighbor(neighborRouterId int) *link.Link {
+	return r.neighbors[neighborRouterId].link
+}
+
+func getNeighorRouterId(currentRouterId int, nodeXId int, nodeYId int) int {
+	switch currentRouterId {
+	case nodeXId:
+		return nodeYId
+	case nodeYId:
+		return nodeXId
+	default:
+		return -1
+	}
+}
+
+// startRouterIdからdestinationに行くまでの、startRouterIdの次のhop
+func findInitialHop(desitination int, previousNodes map[int]int, startRouterId int) int {
+	currentRouterId := desitination
+	for {
+		p, ok := previousNodes[currentRouterId]
+		if !ok {
+			break // 親ノードがいなくなったら（行き止まり）ループを抜ける
+		}
+
+		if p == startRouterId {
+			return currentRouterId // スタートの直前まで戻ってきたので、その時のノードを返す
+		}
+		currentRouterId = p
+	}
+
+	panic("no valid path from start routerId to destination")
+}

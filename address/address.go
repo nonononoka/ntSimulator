@@ -3,6 +3,7 @@ package address
 import (
 	"fmt"
 	"net"
+	"net/netip"
 )
 
 type MacAddress struct {
@@ -10,6 +11,10 @@ type MacAddress struct {
 }
 
 type IpAddress struct {
+	address string
+}
+
+type NetworkAddress struct {
 	address string
 }
 
@@ -41,13 +46,22 @@ func isValidCIDRNotation(address string) bool {
 	return true
 }
 
-func (address *IpAddress) GetCIDRIpAddress() net.IP {
+func (address *IpAddress) GetNetworkAddress() net.IP {
 	ipAddress := address.address
 	ip, _, err := net.ParseCIDR(ipAddress)
 	if err != nil {
 		panic("invalid CIDR notation: " + ipAddress)
 	}
 	return ip
+}
+
+func (address *IpAddress) ConvertToNetworkCIDR() *IpAddress {
+	prefix, err := netip.ParsePrefix(address.String())
+	if err != nil {
+		panic(fmt.Sprintf("無効なCIDR形式です: %w", err))
+	}
+
+	return NewIPAddress(prefix.Masked().String())
 }
 
 func (address *IpAddress) IsSameNetwork(otherIpAddress *IpAddress) bool {

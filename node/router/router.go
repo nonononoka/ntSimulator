@@ -18,8 +18,8 @@ interfaces → このリンクに対して 10.0.0.1（自分のアドレス）
 nexthop → 10.0.0.2（ルーターBのアドレス）
 */
 
-type entry struct {
-	nexthop *address.IpAddress
+type routingTableEntry struct {
+	nexthop int
 	link    *link.Link
 }
 
@@ -31,14 +31,14 @@ type neighborInfo struct {
 
 type topologyEntry struct {
 	sequenceNumber int
-	linkStateInfos []packet.LinkStateInfo // linkごとのstate情報
+	linkStateInfos []packet.LinkStateInfo // そのrouterIDが繋がっているlinkのstate情報
 }
 
 type router struct {
 	*basenode.BaseNode
 	availableIps          map[*address.IpAddress]bool       // CIDR表記のIPアドレスを辞書に変換して，使用状況を記録
 	interfaces            map[*link.Link]*address.IpAddress // リンクとIPアドレスのマッピング
-	routingTable          map[*address.IpAddress]entry
+	routingTable          map[*address.IpAddress]routingTableEntry
 	helloInterval         float64
 	neighbors             map[int]*neighborInfo
 	lsaSequenceNumber     int
@@ -56,7 +56,7 @@ func NewRouter(nodeId int, ipAddreses []string, nes *nteventsched.NtEventSched) 
 		BaseNode:              basenode.NewBaseNode(nodeId, nes),
 		availableIps:          availableIps,
 		interfaces:            make(map[*link.Link]*address.IpAddress),
-		routingTable:          make(map[*address.IpAddress]entry),
+		routingTable:          make(map[*address.IpAddress]routingTableEntry),
 		helloInterval:         10.0,
 		neighbors:             make(map[int]*neighborInfo),
 		lsaInterval:           10.0,
@@ -81,12 +81,8 @@ func (r *router) AddLink(link *link.Link, ipAddress *address.IpAddress) {
 
 // ルーティングテーブルにルートを追加するメソッド
 // このdestinationCIDRはネットワークアドレス
-func (r *router) AddRoute(destinationCIDR string, nexthop string, link *link.Link) {
-	var nextHopAddr *address.IpAddress
-	if nexthop != "" {
-		nextHopAddr = address.NewIPAddress(nexthop)
-	}
-	r.routingTable[address.NewIPAddress(destinationCIDR)] = entry{nexthop: nextHopAddr, link: link}
+func (r *router) AddRoute(destinationCIDR string, nexthop int, link *link.Link) {
+	r.routingTable[address.NewIPAddress(destinationCIDR)] = routingTableEntry{nexthop: nexthop, link: link}
 }
 
 func (r *router) ReceivePacket(p packetI.PacketI, receivedLink *link.Link) {
@@ -169,13 +165,13 @@ func (r *router) markIpAsUsed(ipAddress *address.IpAddress) {
 
 // CIDR形式のルーティングテーブルから宛先IPアドレスに最適なルートを検索する
 // destinationIPが，特定のネットワークに属するならそこが最適ルートとする
-func (r *router) getRoute(destionationIp *address.IpAddress) (entry, bool) {
+func (r *router) getRoute(destionationIp *address.IpAddress) (routingTableEntry, bool) {
 	for networkCIDR, next := range r.routingTable {
 		if networkCIDR.IsSameNetwork(destionationIp) {
 			return next, true
 		}
 	}
-	return entry{}, false // ルートが見つからなかった場合
+	return routingTableEntry{}, false // ルートが見つからなかった場合
 }
 
 func (r *router) forwardPacket(p packetI.PacketI) {
