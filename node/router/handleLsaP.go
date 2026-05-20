@@ -208,6 +208,9 @@ func (r *router) updateRoutingTableWithDijkstra() {
 	// 各routerに行くまでに最初にどこに行ったらいいかをupdateする
 	for destination := range shortestPaths {
 		if destination != r.NodeId() {
+			if math.IsInf(shortestPaths[destination], 1) {
+				continue // LSA未到達で到達不可能なノードはスキップ
+			}
 			// このrouterからdestinationに行くにはまずnextHopRouterIdに行く必要がある
 			nextHopRouterId := findInitialHop(destination, previousNodes, r.NodeId())
 			linkToNextHop := r.getLinkToNeighbor(nextHopRouterId)
@@ -229,7 +232,7 @@ func (r *router) updateRoutingTableWithDijkstra() {
 	// 自分のinterfaceに接続されているネットワークへのルートを追加
 	for l, ipAddress := range r.interfaces {
 		if _, ok := tmpRoutingTable[*ipAddress.ConvertToNetworkCIDR()]; !ok {
-			tmpRoutingTable[*ipAddress.ConvertToNetworkCIDR()] = &routingTableEntry{link: l}
+			tmpRoutingTable[*ipAddress.ConvertToNetworkCIDR()] = &routingTableEntry{nexthop: -1, link: l}
 		}
 	}
 
@@ -296,5 +299,5 @@ func findInitialHop(desitination int, previousNodes map[int]int, startRouterId i
 		currentRouterId = p
 	}
 
-	panic("no valid path from start routerId to destination")
+	panic(fmt.Sprintf("no valid path from start %v to destination %v", startRouterId, desitination))
 }

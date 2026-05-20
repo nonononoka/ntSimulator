@@ -155,6 +155,16 @@ func (r *router) GetNeighborIds() []int {
 	return ids
 }
 
+// GetRoutingEntries はルーティングテーブルを "ネットワークCIDR -> nexthop router ID" のマップで返す。
+// nexthop が -1 の場合は直接接続されたネットワーク。
+func (r *router) GetRoutingEntries() map[string]int {
+	result := make(map[string]int, len(r.routingTable))
+	for ip, entry := range r.routingTable {
+		result[ip.String()] = entry.nexthop
+	}
+	return result
+}
+
 func (r *router) markIpAsUsed(ipAddress *address.IpAddress) {
 	if _, ok := r.availableIps[ipAddress]; ok {
 		r.availableIps[ipAddress] = true

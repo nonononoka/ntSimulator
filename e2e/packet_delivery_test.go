@@ -22,10 +22,10 @@ func TestPacketDelivery(t *testing.T) {
 	l2 := link.NewLink(r1, r2, 100000, 0.001, 0.0, nes)
 	l3 := link.NewLink(n2, r2, 100000, 0.001, 0.0, nes)
 
-	r1.AddRoute("192.168.1.0/24", "", l1)
-	r1.AddRoute("192.168.2.0/24", "10.0.0.2/24", l2)
-	r2.AddRoute("192.168.2.0/24", "", l3)
-	r2.AddRoute("192.168.1.0/24", "10.0.0.1/24", l2)
+	r1.AddRoute("192.168.1.0/24", -1, l1)
+	r1.AddRoute("192.168.2.0/24", 3, l2)
+	r2.AddRoute("192.168.2.0/24", -1, l3)
+	r2.AddRoute("192.168.1.0/24", 2, l2)
 
 	// startTime=1.0 でパケット送信，payload=10000byte → MTU(1500)-header(40)=1460byte/fragment → 7フラグメント
 	n1.SetTraffic("00:1A:2B:3C:4D:5F", "192.168.2.1/24", 8000, 1.0, 10.0, 40, 10000, 1.0)
