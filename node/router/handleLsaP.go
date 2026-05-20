@@ -29,9 +29,14 @@ func (r *router) sendLsaPacket() {
 }
 
 func (r *router) getLinkStateInfos() []packet.LinkStateInfo {
-	linkStateInfos := make([]packet.LinkStateInfo, 3, 3)
+	linkStateInfos := make([]packet.LinkStateInfo, 0, len(r.interfaces))
 	for l, ipAddress := range r.interfaces {
-		linkStateInfos = append(linkStateInfos, packet.LinkStateInfo{IpAddress: ipAddress.String(), Cost: l.GetLinkCost()})
+		linkStateInfos = append(linkStateInfos, packet.LinkStateInfo{
+			NodeXId:   l.NodeX().NodeId(),
+			NodeYId:   l.NodeY().NodeId(),
+			IpAddress: ipAddress.String(),
+			Cost:      l.GetLinkCost(),
+		})
 	}
 	return linkStateInfos
 }
@@ -97,9 +102,14 @@ func (r *router) receiveLsaPacket(p *packet.LsaP, receivedLink *link.Link) {
 }
 
 func (r *router) initializeTopologyDatabase() {
-	linkStateInfos := make([]packet.LinkStateInfo, 3, 3)
-	for link, ipAddress := range r.interfaces {
-		linkStateInfos = append(linkStateInfos, packet.LinkStateInfo{IpAddress: ipAddress.String(), Cost: link.GetLinkCost()})
+	linkStateInfos := make([]packet.LinkStateInfo, 0, len(r.interfaces))
+	for l, ipAddress := range r.interfaces {
+		linkStateInfos = append(linkStateInfos, packet.LinkStateInfo{
+			NodeXId:   l.NodeX().NodeId(),
+			NodeYId:   l.NodeY().NodeId(),
+			IpAddress: ipAddress.String(),
+			Cost:      l.GetLinkCost(),
+		})
 	}
 
 	r.topologyDatabase[r.NodeId()] = topologyEntry{sequenceNumber: 0, linkStateInfos: linkStateInfos}
@@ -118,7 +128,7 @@ func (r *router) printTopologyDatabase() {
 		// 各リンクの情報をループして出力
 		for _, info := range entry.linkStateInfos {
 			fmt.Printf("  - Link [%v <-> %v]: IP Address = %s, Cost = %.2f\n",
-				info.Link.NodeX().NodeId(), info.Link.NodeY().NodeId(), info.IpAddress, info.Cost)
+				info.NodeXId, info.NodeYId, info.IpAddress, info.Cost)
 		}
 	}
 

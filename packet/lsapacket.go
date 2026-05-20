@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"nt-simulator/address"
-	"nt-simulator/link"
 )
 
 type LsaP struct {
@@ -12,9 +11,10 @@ type LsaP struct {
 }
 
 type LinkStateInfo struct {
-	Link      *link.Link `json:"link"`
-	IpAddress string     `json:"ipAddress"`
-	Cost      float64    `json:"cost"`
+	NodeXId   int     `json:"nodeXId"`
+	NodeYId   int     `json:"nodeYId"`
+	IpAddress string  `json:"ipAddress"`
+	Cost      float64 `json:"cost"`
 }
 
 type lsaPayload struct {
