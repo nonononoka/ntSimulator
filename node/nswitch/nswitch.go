@@ -8,6 +8,7 @@ import (
 	"nt-simulator/node/basenode"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
+	"nt-simulator/packet/packetI"
 )
 
 type nswitch struct {
@@ -57,7 +58,7 @@ func (s *nswitch) AddLink(link *link.Link, ip *address.IpAddress) {
 }
 
 // スイッチがパケットを受信したとき
-func (s *nswitch) ReceivePacket(p packet.PacketI, l *link.Link) {
+func (s *nswitch) ReceivePacket(p packetI.PacketI, l *link.Link) {
 	if bpdu, ok := p.(*packet.BPDU); ok {
 		s.GetNES().LogPacketInfo(bpdu, "BPDU received", s.NodeId())
 		s.processBPDU(bpdu, l)
@@ -179,7 +180,7 @@ func (s *nswitch) updateLinkStates(receivedLink *link.Link, receivedBPDUPathCost
 	}
 }
 
-func (s *nswitch) forwardPacket(p packet.PacketI, receivedLink *link.Link) {
+func (s *nswitch) forwardPacket(p packetI.PacketI, receivedLink *link.Link) {
 	destinationAddress := p.GetHeader().DestinationMac
 	if l, ok := s.forwardingTable[destinationAddress]; ok {
 		if s.linkStates[l] == "forwarding" {

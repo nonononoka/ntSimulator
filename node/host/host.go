@@ -7,6 +7,7 @@ import (
 	"nt-simulator/node/basenode"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
+	"nt-simulator/packet/packetI"
 	"sort"
 	"strings"
 
@@ -17,7 +18,7 @@ import (
 type host struct {
 	*basenode.BaseNode
 	mtu               int
-	fragmentedPackets map[string]map[int]packet.PacketI
+	fragmentedPackets map[string]map[int]packetI.PacketI
 	*address.MacAddress
 	*address.IpAddress
 	arrivedCount  int
@@ -28,7 +29,7 @@ func (n *host) ArrivedCount() int  { return n.arrivedCount }
 func (n *host) ReceivedBytes() int { return n.receivedBytes }
 
 func NewHost(nodeId int, macAddress string, ipAddress string, mtu int, nes *nteventsched.NtEventSched) *host {
-	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packet.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(macAddress),
+	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packetI.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(macAddress),
 		IpAddress: address.NewIPAddress(ipAddress)}
 	nes.AddNode(n)
 	return n
@@ -58,7 +59,7 @@ func (n *host) AddLink(link *link.Link, ip *address.IpAddress) {
 	n.SetLinks(append(n.GetLinks(), link))
 }
 
-func (n *host) ReceivePacket(p packet.PacketI, l *link.Link) {
+func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 	if p.ArrivalTime() == -1 {
 		n.GetNES().LogPacketInfo(p, "lost", n.NodeId())
 		return
@@ -107,19 +108,19 @@ func (n *host) GetIPAddresses() []*address.IpAddress {
 }
 
 // fragmentedPacketsにoriginalDataIdのところにoffset付きで保管する
-func (n *host) storeFragment(fragment packet.PacketI) {
+func (n *host) storeFragment(fragment packetI.PacketI) {
 	originalDataId := fragment.GetHeader().FragmentFlags.OriginalDataId
 	offset := fragment.GetHeader().FragmentOffset
 
 	if _, ok := n.fragmentedPackets[originalDataId]; !ok {
-		n.fragmentedPackets[originalDataId] = make(map[int]packet.PacketI)
+		n.fragmentedPackets[originalDataId] = make(map[int]packetI.PacketI)
 	}
 
 	n.fragmentedPackets[originalDataId][offset] = fragment
 	n.GetNES().LogPacketInfo(fragment, fmt.Sprintf("fragment_stored offset:%v originalDataId:%s moreflagment:%v", fragment.GetHeader().FragmentOffset, fragment.GetHeader().FragmentFlags.OriginalDataId, fragment.GetHeader().FragmentFlags.MoreFragment), n.NodeId())
 }
 
-func (n *host) reassembleAndProcessPacket(lastFragment packet.PacketI) {
+func (n *host) reassembleAndProcessPacket(lastFragment packetI.PacketI) {
 	originalDataId := lastFragment.GetHeader().FragmentFlags.OriginalDataId
 	if _, ok := n.fragmentedPackets[originalDataId]; !ok {
 		// 対応するフラグメントがない場合

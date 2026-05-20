@@ -18,12 +18,13 @@ nodeインタフェースは，そもそも`link`structからしか使われな�
 インタフェースに定義させるメソッドは，ポリモーフィズムで使いたいやつだけ定義すれば良い．
 
 以前：
+
 ```
 type node interface {
     PrintNode()
     NodeId() int
     AddLink(link *Link)
-    ReceivePacket(p packet.PacketI, l *Link)
+    ReceivePacket(p packetI.PacketI, l *Link)
 }
 ```
 
@@ -42,4 +43,3 @@ func NewLink(nodeX node, nodeY node, bandwidth float64, delay float64, packetLos
 ```
 
 みたいに，node interfaceを受け取って，使っているのでinterfaceに定義するべき．
-

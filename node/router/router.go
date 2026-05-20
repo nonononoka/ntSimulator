@@ -6,6 +6,7 @@ import (
 	"nt-simulator/node/basenode"
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
+	"nt-simulator/packet/packetI"
 )
 
 /*
@@ -30,7 +31,7 @@ type neighborInfo struct {
 
 type topologyEntry struct {
 	sequenceNumber int
-	linkStateInfos map[string]packet.LinkStateInfo // linkごとのstate情報
+	linkStateInfos []packet.LinkStateInfo // linkごとのstate情報
 }
 
 type router struct {
@@ -88,7 +89,7 @@ func (r *router) AddRoute(destinationCIDR string, nexthop string, link *link.Lin
 	r.routingTable[address.NewIPAddress(destinationCIDR)] = entry{nexthop: nextHopAddr, link: link}
 }
 
-func (r *router) ReceivePacket(p packet.PacketI, receivedLink *link.Link) {
+func (r *router) ReceivePacket(p packetI.PacketI, receivedLink *link.Link) {
 	if helloP, ok := p.(*packet.HelloP); ok {
 		r.GetNES().LogPacketInfo(p, "router hello received", r.NodeId())
 		r.receiveHelloPacket(helloP, receivedLink)
@@ -177,7 +178,7 @@ func (r *router) getRoute(destionationIp *address.IpAddress) (entry, bool) {
 	return entry{}, false // ルートが見つからなかった場合
 }
 
-func (r *router) forwardPacket(p packet.PacketI) {
+func (r *router) forwardPacket(p packetI.PacketI) {
 	destinationAddress := p.GetHeader().DestIp
 	entry, ok := r.getRoute(destinationAddress) // このdestination Addressに行くなら，このlinkを辿ってこのIPアドレスに行け
 

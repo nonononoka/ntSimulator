@@ -2,7 +2,6 @@ package router
 
 import (
 	"fmt"
-	"math"
 	"math/rand/v2"
 	"nt-simulator/address"
 	"nt-simulator/link"
@@ -29,10 +28,10 @@ func (r *router) sendLsaPacket() {
 	})
 }
 
-func (r *router) getLinkStateInfos() map[string]packet.LinkStateInfo {
-	linkStateInfos := make(map[string]packet.LinkStateInfo)
+func (r *router) getLinkStateInfos() []packet.LinkStateInfo {
+	linkStateInfos := make([]packet.LinkStateInfo, 3, 3)
 	for l, ipAddress := range r.interfaces {
-		linkStateInfos[l.GetId()] = packet.LinkStateInfo{IpAddress: ipAddress.String(), Cost: l.GetLinkCost()}
+		linkStateInfos = append(linkStateInfos, packet.LinkStateInfo{IpAddress: ipAddress.String(), Cost: l.GetLinkCost()})
 	}
 	return linkStateInfos
 }
@@ -98,9 +97,9 @@ func (r *router) receiveLsaPacket(p *packet.LsaP, receivedLink *link.Link) {
 }
 
 func (r *router) initializeTopologyDatabase() {
-	linkStateInfos := make(map[string]packet.LinkStateInfo)
+	linkStateInfos := make([]packet.LinkStateInfo, 3, 3)
 	for link, ipAddress := range r.interfaces {
-		linkStateInfos[link.GetId()] = packet.LinkStateInfo{IpAddress: ipAddress.String(), Cost: link.GetLinkCost()}
+		linkStateInfos = append(linkStateInfos, packet.LinkStateInfo{IpAddress: ipAddress.String(), Cost: link.GetLinkCost()})
 	}
 
 	r.topologyDatabase[r.NodeId()] = topologyEntry{sequenceNumber: 0, linkStateInfos: linkStateInfos}
@@ -117,9 +116,9 @@ func (r *router) printTopologyDatabase() {
 		}
 
 		// 各リンクの情報をループして出力
-		for linkKey, info := range entry.linkStateInfos {
-			fmt.Printf("  - Link [%s]: IP Address = %s, Cost = %.2f\n",
-				linkKey, info.IpAddress, info.Cost)
+		for _, info := range entry.linkStateInfos {
+			fmt.Printf("  - Link [%v <-> %v]: IP Address = %s, Cost = %.2f\n",
+				info.Link.NodeX().NodeId(), info.Link.NodeY().NodeId(), info.IpAddress, info.Cost)
 		}
 	}
 
@@ -153,20 +152,20 @@ func (lq *heapq) Pop() *gNode {
 	return item
 }
 
-func (r *router) calculateShortestPaths(startRouterId int) {
-	shortestPaths = make(map[int]float64)
-	previousNodes := make(map[int]int) // 各ルーターの前に辿るルーターを記録
-	for r := range r.topologyDatabase {
-		shortestPaths[r] = math.Inf(1)
-	}
-	shortestPaths[startRouterId] = 0
-	queue := &heapq{&gNode{cost: 0, nodeId: startRouterId}}
+// func (r *router) calculateShortestPaths(startRouterId int) {
+// 	shortestPaths = make(map[int]float64)
+// 	previousNodes := make(map[int]int) // 各ルーターの前に辿るルーターを記録
+// 	for r := range r.topologyDatabase {
+// 		shortestPaths[r] = math.Inf(1)
+// 	}
+// 	shortestPaths[startRouterId] = 0
+// 	queue := &heapq{&gNode{cost: 0, nodeId: startRouterId}}
 
-	for queue.Len() != 0 {
-		currentNode := queue.Pop()
+// 	for queue.Len() != 0 {
+// 		currentNode := queue.Pop()
 
-		for link, linkInfo := range r.topologyDatabase[currentNode.nodeId].linkStateInfos {
-			// このlinkからいけるrouterを
-		}
-	}
-}
+// 		for link, linkInfo := range r.topologyDatabase[currentNode.nodeId].linkStateInfos {
+// 			// このlinkからいけるrouterを
+// 		}
+// 	}
+// }

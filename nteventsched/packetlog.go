@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 	"nt-simulator/address"
-	"nt-simulator/packet"
+	"nt-simulator/packet/packetI"
 )
 
 type packetEvent struct {
@@ -26,7 +26,7 @@ type packetLog struct {
 	events         []*packetEvent
 }
 
-func (nes *NtEventSched) LogPacketInfo(p packet.PacketI, eventType string, nodeId int) {
+func (nes *NtEventSched) LogPacketInfo(p packetI.PacketI, eventType string, nodeId int) {
 	if !nes.logEnabled {
 		return
 	}

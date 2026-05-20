@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"nt-simulator/address"
 	"nt-simulator/nteventsched"
-	"nt-simulator/packet"
+	"nt-simulator/packet/packetI"
 
 	"github.com/google/uuid"
 )
@@ -30,14 +30,14 @@ type Link struct {
 type node interface {
 	NodeId() int
 	AddLink(link *Link, ip *address.IpAddress)
-	ReceivePacket(p packet.PacketI, l *Link)
+	ReceivePacket(p packetI.PacketI, l *Link)
 	GetIPAddresses() []*address.IpAddress
 }
 
 // linkのqueueに突っ込むパケットとか
 type packetWithQueueTime struct {
 	dequeTime float64
-	packet    packet.PacketI
+	packet    packetI.PacketI
 	fromNode  node
 }
 
@@ -89,7 +89,7 @@ func (l *Link) NodeY() node {
 	return l.nodeY
 }
 
-func (l *Link) EnqueuePacket(pkt packet.PacketI, from_node node) {
+func (l *Link) EnqueuePacket(pkt packetI.PacketI, from_node node) {
 	var currentQueueTime float64
 	var queue *linkq
 	if l.nodeX.NodeId() != from_node.NodeId() {
@@ -142,7 +142,7 @@ func (l *Link) transferPacket(from_node node) {
 
 		// currentTime + delayの時間から，nextNodeがpacketを受け取り始める
 		l.nes.ScheduleEvent(l.nes.CurrentTime+l.delay, func(args ...any) {
-			nextNode.ReceivePacket(args[0].(packet.PacketI), l)
+			nextNode.ReceivePacket(args[0].(packetI.PacketI), l)
 		}, p)
 
 		// dequeTime(currentTime) + packetTransferTimeで，完全にpacketをlinkに流し終えるので，queueの待ち時間から引ける．

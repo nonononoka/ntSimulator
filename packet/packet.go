@@ -3,27 +3,20 @@ package packet
 import (
 	"fmt"
 	"nt-simulator/address"
+	"nt-simulator/packet/packetI"
 
 	"github.com/google/uuid"
 )
+
+// normalなパケット
 
 type FragmentFlags struct {
 	OriginalDataId string
 	MoreFragment   bool
 }
 
-type Header struct {
-	SourceMac      *address.MacAddress
-	DestinationMac *address.MacAddress
-	SourceIp       *address.IpAddress
-	DestIp         *address.IpAddress
-	ttl            int
-	FragmentFlags  FragmentFlags
-	FragmentOffset int
-}
-
 type Packet struct {
-	Header       Header
+	Header       packetI.Header
 	Payload      string
 	Size         int
 	Id           string
@@ -34,13 +27,13 @@ type Packet struct {
 func NewFragment(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, ttl int, header_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string) *Packet {
 	size := header_size + len(p)
 	return &Packet{
-		Header: Header{
+		Header: packetI.Header{
 			SourceMac:      s,
 			DestinationMac: d,
 			SourceIp:       sourceip,
 			DestIp:         destip,
-			ttl:            ttl,
-			FragmentFlags:  FragmentFlags{OriginalDataId: originalDataId, MoreFragment: morefragment},
+			TTL:            ttl,
+			FragmentFlags:  packetI.FragmentFlags{OriginalDataId: originalDataId, MoreFragment: morefragment},
 			FragmentOffset: offset,
 		},
 		Payload:      p,
@@ -53,7 +46,7 @@ func NewFragment(s *address.MacAddress, d *address.MacAddress, sourceip *address
 func NewPacket(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, ttl int, header_size int, payload_size int, currentTime float64, p string) *Packet {
 	size := header_size + payload_size
 	return &Packet{
-		Header: Header{
+		Header: packetI.Header{
 			SourceMac:      s,
 			DestinationMac: d,
 			SourceIp:       sourceip,
@@ -82,9 +75,9 @@ func (p *Packet) CreationTime() float64 {
 	return p.creationTime
 }
 
-func (p *Packet) GetHeader() Header  { return p.Header }
-func (p *Packet) GetSize() int       { return p.Size }
-func (p *Packet) GetId() string      { return p.Id }
-func (p *Packet) GetPayload() string { return p.Payload }
-func (p *Packet) DecrementTTL()      { p.Header.ttl = p.Header.ttl - 1 }
-func (p *Packet) GetTTL() int        { return p.Header.ttl }
+func (p *Packet) GetHeader() packetI.Header { return p.Header }
+func (p *Packet) GetSize() int              { return p.Size }
+func (p *Packet) GetId() string             { return p.Id }
+func (p *Packet) GetPayload() string        { return p.Payload }
+func (p *Packet) DecrementTTL()             { p.Header.TTL = p.Header.TTL - 1 }
+func (p *Packet) GetTTL() int               { return p.Header.TTL }
