@@ -2,7 +2,6 @@ package router
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/rand/v2"
 	"nt-simulator/address"
@@ -241,14 +240,14 @@ func (r *router) updateRoutingTableWithDijkstra() {
 		r.routingTable[&ip] = *entry
 	}
 
-	PrintRoutingTable(r.routingTable)
+	PrintRoutingTable(r.NodeId(), r.routingTable)
 }
 
-func PrintRoutingTable(table map[*address.IpAddress]routingTableEntry) {
-	log.Println("--- ROUTING TABLE LOG START ---")
+func PrintRoutingTable(nodeId int, table map[*address.IpAddress]routingTableEntry) {
+	fmt.Printf("--- ROUTING TABLE LOG START --- %v\n", nodeId)
 
 	if len(table) == 0 {
-		log.Println("  (Table is empty)")
+		fmt.Println("  (Table is empty)")
 	}
 
 	for ip, entry := range table {
@@ -258,7 +257,7 @@ func PrintRoutingTable(table map[*address.IpAddress]routingTableEntry) {
 		}
 
 		// 3. ログに1行で出力
-		log.Printf("DestIP: %-15s -> NextHop(RouterID): %-3d | Via Link: %v <-> %v",
+		fmt.Printf("DestIP: %-15s -> NextHop(RouterID): %-3d | Via Link: %v <-> %v\n",
 			ipStr,
 			entry.nexthop,
 			entry.link.NodeX().NodeId(),
@@ -266,7 +265,7 @@ func PrintRoutingTable(table map[*address.IpAddress]routingTableEntry) {
 		)
 	}
 
-	log.Println("--- ROUTING TABLE LOG END ---")
+	fmt.Println("--- ROUTING TABLE LOG END ---")
 }
 
 func (r *router) getLinkToNeighbor(neighborRouterId int) *link.Link {
