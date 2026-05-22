@@ -16,7 +16,8 @@ type FragmentFlags struct {
 }
 
 type Packet struct {
-	Header       packetI.Header
+	IpHeader     packetI.IpHeader
+	MacHeader    packetI.MacHeader
 	Payload      string
 	Size         int
 	Id           string
@@ -27,9 +28,11 @@ type Packet struct {
 func NewFragment(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, ttl int, header_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string) *Packet {
 	size := header_size + len(p)
 	return &Packet{
-		Header: packetI.Header{
+		MacHeader: packetI.MacHeader{
 			SourceMac:      s,
 			DestinationMac: d,
+		},
+		IpHeader: packetI.IpHeader{
 			SourceIp:       sourceip,
 			DestIp:         destip,
 			TTL:            ttl,
@@ -46,11 +49,13 @@ func NewFragment(s *address.MacAddress, d *address.MacAddress, sourceip *address
 func NewPacket(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, ttl int, header_size int, payload_size int, currentTime float64, p string) *Packet {
 	size := header_size + payload_size
 	return &Packet{
-		Header: packetI.Header{
+		MacHeader: packetI.MacHeader{
 			SourceMac:      s,
 			DestinationMac: d,
-			SourceIp:       sourceip,
-			DestIp:         destip,
+		},
+		IpHeader: packetI.IpHeader{
+			SourceIp: sourceip,
+			DestIp:   destip,
 		},
 		Payload:      p,
 		Size:         size,
@@ -60,7 +65,7 @@ func NewPacket(s *address.MacAddress, d *address.MacAddress, sourceip *address.I
 }
 
 func (p *Packet) PrintPacket() {
-	fmt.Printf("パケット(送信元: %s), (宛先:%s), ペイロード: %s", p.Header.SourceMac, p.Header.DestinationMac, p.Payload)
+	fmt.Printf("パケット(送信元: %s), (宛先:%s), ペイロード: %s", p.MacHeader.SourceMac, p.MacHeader.DestinationMac, p.Payload)
 }
 
 func (p *Packet) SetArrived(time float64) {
@@ -75,17 +80,26 @@ func (p *Packet) CreationTime() float64 {
 	return p.creationTime
 }
 
-func (p *Packet) GetHeader() packetI.Header { return p.Header }
-func (p *Packet) GetSize() int              { return p.Size }
-func (p *Packet) GetId() string             { return p.Id }
-func (p *Packet) GetPayload() string        { return p.Payload }
-func (p *Packet) DecrementTTL()             { p.Header.TTL = p.Header.TTL - 1 }
-func (p *Packet) GetTTL() int               { return p.Header.TTL }
+func (p *Packet) GetIpHeader() packetI.IpHeader   { return p.IpHeader }
+func (p *Packet) GetMacHeader() packetI.MacHeader { return p.MacHeader }
+func (p *Packet) GetSize() int                    { return p.Size }
+func (p *Packet) GetId() string                   { return p.Id }
+func (p *Packet) GetPayload() string              { return p.Payload }
+func (p *Packet) DecrementTTL()                   { p.IpHeader.TTL = p.IpHeader.TTL - 1 }
+func (p *Packet) GetTTL() int                     { return p.IpHeader.TTL }
 
 func (p *Packet) UpdateSourceMac(newSourceMacAddress *address.MacAddress) {
-	p.Header.SourceMac = newSourceMacAddress
+	p.MacHeader.SourceMac = newSourceMacAddress
 }
 
 func (p *Packet) UpdateDestMac(newDestMacAddress *address.MacAddress) {
-	p.Header.DestinationMac = newDestMacAddress
+	p.MacHeader.DestinationMac = newDestMacAddress
+}
+
+func (p *Packet) RemoveMacHeader() {
+	p.MacHeader = packetI.MacHeader{}
+}
+
+func (p *Packet) AddMacHeader(sourceMacAddress *address.MacAddress, destMacAddress *address.MacAddress) {
+	p.MacHeader = packetI.MacHeader{SourceMac: sourceMacAddress, DestinationMac: destMacAddress}
 }

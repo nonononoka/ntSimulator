@@ -7,9 +7,12 @@ type FragmentFlags struct {
 	MoreFragment   bool
 }
 
-type Header struct {
+type MacHeader struct {
 	SourceMac      *address.MacAddress
 	DestinationMac *address.MacAddress
+}
+
+type IpHeader struct {
 	SourceIp       *address.IpAddress
 	DestIp         *address.IpAddress
 	TTL            int
@@ -22,7 +25,8 @@ type PacketI interface {
 	ArrivalTime() float64
 	CreationTime() float64
 	PrintPacket()
-	GetHeader() Header
+	GetMacHeader() MacHeader
+	GetIpHeader() IpHeader
 	GetSize() int
 	GetId() string
 	GetPayload() string
@@ -30,4 +34,6 @@ type PacketI interface {
 	GetTTL() int
 	UpdateSourceMac(*address.MacAddress)
 	UpdateDestMac(*address.MacAddress)
+	RemoveMacHeader()
+	AddMacHeader(*address.MacAddress, *address.MacAddress)
 }

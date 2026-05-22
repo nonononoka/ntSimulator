@@ -111,7 +111,7 @@ func (r *router) ReceivePacket(p packetI.PacketI, receivedLink *link.Link) {
 	r.GetNES().LogPacketInfo(p, "router received", r.NodeId())
 
 	// 普通のパケットの処理
-	destIp := p.GetHeader().DestIp
+	destIp := p.GetIpHeader().DestIp
 	for _, interfaceCIDR := range r.interfaces {
 		if destIp.IsSameNetwork(interfaceCIDR) {
 			if destIp.String() == interfaceCIDR.String() { // パケットがルーター宛
@@ -189,7 +189,7 @@ func (r *router) getRoute(destionationIp *address.IpAddress) (routingTableEntry,
 }
 
 func (r *router) forwardPacket(p packetI.PacketI) {
-	destinationAddress := p.GetHeader().DestIp
+	destinationAddress := p.GetIpHeader().DestIp
 	entry, ok := r.getRoute(destinationAddress) // このdestination Addressに行くなら，このlinkを辿ってこのIPアドレスに行け
 
 	// 宛先がOSPFのマルチキャストアドレスの場合

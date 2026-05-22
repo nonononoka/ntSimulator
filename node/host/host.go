@@ -65,15 +65,15 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 		n.GetNES().LogPacketInfo(p, "lost", n.NodeId())
 		return
 	}
-	if p.GetHeader().DestinationMac.String() == n.MacAddress.String() && p.GetHeader().DestIp.String() == n.IpAddress.String() {
+	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() && p.GetIpHeader().DestIp.String() == n.IpAddress.String() {
 		n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
 		p.SetArrived(n.GetNES().CurrentTime)
 		n.arrivedCount++
 		n.receivedBytes += len(p.GetPayload())
 
-		if p.GetHeader().FragmentFlags.MoreFragment {
+		if p.GetIpHeader().FragmentFlags.MoreFragment {
 			n.storeFragment(p)
-		} else if p.GetHeader().FragmentOffset > 0 {
+		} else if p.GetIpHeader().FragmentOffset > 0 {
 			n.reassembleAndProcessPacket(p)
 		} else {
 			// フラグメント化されていない単体パケット
@@ -110,19 +110,19 @@ func (n *host) GetIPAddresses() []*address.IpAddress {
 
 // fragmentedPacketsにoriginalDataIdのところにoffset付きで保管する
 func (n *host) storeFragment(fragment packetI.PacketI) {
-	originalDataId := fragment.GetHeader().FragmentFlags.OriginalDataId
-	offset := fragment.GetHeader().FragmentOffset
+	originalDataId := fragment.GetIpHeader().FragmentFlags.OriginalDataId
+	offset := fragment.GetIpHeader().FragmentOffset
 
 	if _, ok := n.fragmentedPackets[originalDataId]; !ok {
 		n.fragmentedPackets[originalDataId] = make(map[int]packetI.PacketI)
 	}
 
 	n.fragmentedPackets[originalDataId][offset] = fragment
-	n.GetNES().LogPacketInfo(fragment, fmt.Sprintf("fragment_stored offset:%v originalDataId:%s moreflagment:%v", fragment.GetHeader().FragmentOffset, fragment.GetHeader().FragmentFlags.OriginalDataId, fragment.GetHeader().FragmentFlags.MoreFragment), n.NodeId())
+	n.GetNES().LogPacketInfo(fragment, fmt.Sprintf("fragment_stored offset:%v originalDataId:%s moreflagment:%v", fragment.GetIpHeader().FragmentOffset, fragment.GetIpHeader().FragmentFlags.OriginalDataId, fragment.GetIpHeader().FragmentFlags.MoreFragment), n.NodeId())
 }
 
 func (n *host) reassembleAndProcessPacket(lastFragment packetI.PacketI) {
-	originalDataId := lastFragment.GetHeader().FragmentFlags.OriginalDataId
+	originalDataId := lastFragment.GetIpHeader().FragmentFlags.OriginalDataId
 	if _, ok := n.fragmentedPackets[originalDataId]; !ok {
 		// 対応するフラグメントがない場合
 		n.GetNES().LogPacketInfo(lastFragment, "reassemble failed no fragments", n.NodeId())
@@ -143,7 +143,7 @@ func (n *host) reassembleAndProcessPacket(lastFragment packetI.PacketI) {
 
 	assembledPayload += lastFragment.GetPayload()
 
-	expectedLength := lastFragment.GetHeader().FragmentOffset + len(lastFragment.GetPayload())
+	expectedLength := lastFragment.GetIpHeader().FragmentOffset + len(lastFragment.GetPayload())
 	if len(assembledPayload) != expectedLength {
 		n.GetNES().LogPacketInfo(lastFragment, fmt.Sprintf("reassemble failed: missing fragments (expected %d bytes, got %d bytes)", expectedLength, len(assembledPayload)), n.NodeId())
 		return
@@ -153,7 +153,7 @@ func (n *host) reassembleAndProcessPacket(lastFragment packetI.PacketI) {
 
 func (n *host) internalSendPacket(p *packet.Packet) {
 	n.GetNES().LogPacketInfo(p, "sent", n.NodeId())
-	if p.Header.DestinationMac == n.MacAddress {
+	if p.MacHeader.DestinationMac == n.MacAddress {
 		n.ReceivePacket(p, nil)
 	} else {
 		for _, l := range n.GetLinks() {

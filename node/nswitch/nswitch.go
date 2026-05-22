@@ -66,7 +66,7 @@ func (s *nswitch) ReceivePacket(p packetI.PacketI, l *link.Link) {
 			return
 		}
 		s.GetNES().LogPacketInfo(p, "received", s.NodeId())
-		sourceMacAddress := p.GetHeader().SourceMac
+		sourceMacAddress := p.GetMacHeader().SourceMac
 		s.updateForwardingTable(sourceMacAddress, l)
 		s.forwardPacket(p, l)
 	}
@@ -179,7 +179,7 @@ func (s *nswitch) updateLinkStates(receivedLink *link.Link, receivedBPDUPathCost
 }
 
 func (s *nswitch) forwardPacket(p packetI.PacketI, receivedLink *link.Link) {
-	destinationAddress := p.GetHeader().DestinationMac
+	destinationAddress := p.GetMacHeader().DestinationMac
 	if l, ok := s.forwardingTable[destinationAddress]; ok {
 		if s.linkStates[l] == "forwarding" {
 			s.GetNES().LogPacketInfo(p, "forwarded", s.NodeId())

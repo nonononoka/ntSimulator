@@ -33,12 +33,12 @@ func (nes *NtEventSched) LogPacketInfo(p packetI.PacketI, eventType string, node
 	_, ok := nes.packetLogs[p.GetId()]
 	if !ok {
 		nes.packetLogs[p.GetId()] = &packetLog{
-			source:         p.GetHeader().SourceMac,
-			destination:    p.GetHeader().DestinationMac,
+			source:         p.GetMacHeader().SourceMac,
+			destination:    p.GetMacHeader().DestinationMac,
 			size:           p.GetSize(),
 			creationTime:   p.CreationTime(),
 			arrivalTime:    p.ArrivalTime(),
-			originalDataId: p.GetHeader().FragmentFlags.OriginalDataId,
+			originalDataId: p.GetIpHeader().FragmentFlags.OriginalDataId,
 		}
 	}
 
@@ -54,14 +54,14 @@ func (nes *NtEventSched) LogPacketInfo(p packetI.PacketI, eventType string, node
 		event:    eventType,
 		nodeId:   nodeId,
 		packetId: p.GetId(),
-		src:      p.GetHeader().SourceMac,
-		dst:      p.GetHeader().DestinationMac,
+		src:      p.GetMacHeader().SourceMac,
+		dst:      p.GetMacHeader().DestinationMac,
 	}
 	nes.packetLogs[p.GetId()].events = append(nes.packetLogs[p.GetId()].events, &eventInfo)
 
 	if nes.Verbose {
 		fmt.Printf("time: %v, node: %v, event: %s, packet: %v, src: %s, dst: %s\n",
-			nes.CurrentTime, nodeId, eventType, p.GetId(), p.GetHeader().SourceMac, p.GetHeader().DestinationMac)
+			nes.CurrentTime, nodeId, eventType, p.GetId(), p.GetMacHeader().SourceMac, p.GetMacHeader().DestinationMac)
 	}
 }
 
