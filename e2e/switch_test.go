@@ -21,7 +21,7 @@ func TestSwitchDelivery(t *testing.T) {
 	link.NewLink(s1, n2, 100000, 0.001, 0.0, nes)
 
 	// headerSize=20, payloadSize=1000 → 1020 byte < MTU(1500) なのでフラグメントなし
-	n1.SetTraffic("192.168.1.2/24", 8000, 1.0, 10.0, 20, 1000, 1.0)
+	n1.SetTraffic(n2.IpAddress, 8000, 1.0, 10.0, 20, 1000, 1.0)
 
 	nes.RunUntil(5.0)
 

@@ -53,7 +53,7 @@ func main() {
 	// link.NewLink(s2, s4, 100000, 0.001, 0.0, nes)
 	// link.NewLink(s3, s4, 100000, 0.001, 0.0, nes)
 
-	n1.SetTraffic("192.168.2.1/24", 10000, 1.0, 10.0, 40.0, 10000, 1.0)
+	n1.SetTraffic(n2.IpAddress, 10000, 1.0, 10.0, 40.0, 10000, 1.0)
 	// n2.SetTraffic("00:1A:2B:3C:4D:5E", 8000, 40.0, 10.0, 40.0, 85.0, 1.0)
 	// linkを繋ぐ前
 	// s1.PrintLinkStates()

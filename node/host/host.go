@@ -86,7 +86,7 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 	}
 }
 
-func (n *host) SetTraffic(destinationIp string, bitrate float64, startTime float64, duration float64, headerSize int, payloadSize int, burstiness float64) {
+func (n *host) SetTraffic(destinationIp *address.IpAddress, bitrate float64, startTime float64, duration float64, headerSize int, payloadSize int, burstiness float64) {
 	// endTime := startTime + duration
 	// packetSize := headerSize + payloadSize
 	// burstinessはよくわからん
@@ -100,7 +100,7 @@ func (n *host) SetTraffic(destinationIp string, bitrate float64, startTime float
 	// 	})
 	// }
 	n.GetNES().ScheduleEvent(startTime, func(args ...any) {
-		n.createPacket(address.NewIPAddress(destinationIp), headerSize, payloadSize, strings.Repeat("X", payloadSize))
+		n.createPacket(destinationIp, headerSize, payloadSize, strings.Repeat("X", payloadSize))
 	})
 }
 
