@@ -43,3 +43,11 @@ func NewLink(nodeX node, nodeY node, bandwidth float64, delay float64, packetLos
 ```
 
 みたいに，node interfaceを受け取って，使っているのでinterfaceに定義するべき．
+
+# 5/22
+
+arp tableを実装。
+このarp tableは本書では、最終到達IPアドレスと、hopしたい相手のMACアドレスを登録するようになっている。
+これは現実とは違う。
+現実では、hostもrouting tableを持っていて、そこから次に送るルーターのipアドレスを把握して、routerのIPアドレスとrouterのMACアドレスをarp tableから取得する。
+が、simulatorの都合上おそらくこうなっている。
