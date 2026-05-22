@@ -88,14 +88,6 @@ func (p *Packet) GetPayload() string              { return p.Payload }
 func (p *Packet) DecrementTTL()                   { p.IpHeader.TTL = p.IpHeader.TTL - 1 }
 func (p *Packet) GetTTL() int                     { return p.IpHeader.TTL }
 
-func (p *Packet) UpdateSourceMac(newSourceMacAddress *address.MacAddress) {
-	p.MacHeader.SourceMac = newSourceMacAddress
-}
-
-func (p *Packet) UpdateDestMac(newDestMacAddress *address.MacAddress) {
-	p.MacHeader.DestinationMac = newDestMacAddress
-}
-
 func (p *Packet) RemoveMacHeader() {
 	p.MacHeader = packetI.MacHeader{}
 }

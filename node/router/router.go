@@ -59,6 +59,8 @@ func NewRouter(nodeId int, ipAddreses []string, nes *nteventsched.NtEventSched) 
 		BaseNode:              basenode.NewBaseNode(nodeId, nes),
 		availableIps:          availableIps,
 		interfaces:            make(map[*link.Link]*address.IpAddress),
+		macAddresses:          make(map[*link.Link]*address.MacAddress),
+		arpTable:              make(map[*address.IpAddress]*address.MacAddress),
 		routingTable:          make(map[*address.IpAddress]routingTableEntry),
 		helloInterval:         10.0,
 		neighbors:             make(map[int]*neighborInfo),
@@ -108,21 +110,25 @@ func (r *router) ReceivePacket(p packetI.PacketI, receivedLink *link.Link) {
 		return
 	}
 
-	r.GetNES().LogPacketInfo(p, "router received", r.NodeId())
-
-	// 普通のパケットの処理
-	destIp := p.GetIpHeader().DestIp
-	for _, interfaceCIDR := range r.interfaces {
-		if destIp.IsSameNetwork(interfaceCIDR) {
-			if destIp.String() == interfaceCIDR.String() { // パケットがルーター宛
-				r.GetNES().LogPacketInfo(p, "arrived to router", r.NodeId())
-			} else { // ルーター宛ではないが，そのルーターと同じネットワークだった場合
-				r.forwardPacket(p)
+	if p.GetMacHeader().DestinationMac.String() == r.GetMacAddress(receivedLink).String() {
+		r.GetNES().LogPacketInfo(p, "router received", r.NodeId())
+		p.RemoveMacHeader() // Macアドレスの付け替え処理
+		// 普通のパケットの処理
+		destIp := p.GetIpHeader().DestIp
+		for _, interfaceCIDR := range r.interfaces {
+			if destIp.IsSameNetwork(interfaceCIDR) {
+				if destIp.String() == interfaceCIDR.String() { // パケットがルーター宛
+					r.GetNES().LogPacketInfo(p, "arrived to router", r.NodeId())
+				} else { // ルーター宛ではないが，そのルーターと同じネットワークだった場合
+					r.forwardPacket(p)
+				}
+				return
 			}
-			return
 		}
+		r.forwardPacket(p)
+	} else {
+		r.GetNES().LogPacketInfo(p, "dropped due to unmatched MAC Address", r.NodeId())
 	}
-	r.forwardPacket(p)
 }
 
 func (r *router) GetIPAddresses() []*address.IpAddress {
@@ -195,24 +201,24 @@ func (r *router) forwardPacket(p packetI.PacketI) {
 	// 宛先がOSPFのマルチキャストアドレスの場合
 	if destinationAddress.String() == "224.0.0.5/32" {
 		for l := range r.interfaces { // 全部のinterfaceにパケットを送信
-			// 異なるネットワークセグメント間では、macアドレスを付け替える必要がある
-			p.UpdateSourceMac(r.getMacAddress(l))
-			p.UpdateDestMac(r.getMacAddressFromIp(destinationAddress))
-			l.EnqueuePacket(p, r)
+			r.proceedAndEnqueuePacket(p, l)
 		}
 	} else if ok { // ルーティング成功
-		// 異なるネットワークセグメント間では、macアドレスを付け替える必要がある
-		p.UpdateSourceMac(r.getMacAddress(entry.link))
-		p.UpdateDestMac(r.getMacAddressFromIp(destinationAddress))
-		r.GetNES().LogPacketInfo(p, "router forwarded", r.NodeId())
-		entry.link.EnqueuePacket(p, r)
+		r.proceedAndEnqueuePacket(p, entry.link)
 	} else {
 		r.GetNES().LogPacketInfo(p, "router dropped", r.NodeId())
 	}
 	// TODO：デフォルトルートの実装
 }
 
-func (r *router) getMacAddress(link *link.Link) *address.MacAddress {
+// 異なるネットワークセグメント間では、macアドレスを付け替える必要がある
+func (r *router) proceedAndEnqueuePacket(p packetI.PacketI, l *link.Link) {
+	p.AddMacHeader(r.GetMacAddress(l), r.getMacAddressFromIp(p.GetIpHeader().DestIp))
+	r.GetNES().LogPacketInfo(p, "router forwarded", r.NodeId())
+	l.EnqueuePacket(p, r)
+}
+
+func (r *router) GetMacAddress(link *link.Link) *address.MacAddress {
 	return r.macAddresses[link]
 }
 
@@ -220,7 +226,7 @@ func (r *router) getIpAddress(link *link.Link) *address.IpAddress {
 	return r.interfaces[link]
 }
 
-func (r *router) addToArpTable(ipAddress *address.IpAddress, macAddress *address.MacAddress) {
+func (r *router) AddToArpTable(ipAddress *address.IpAddress, macAddress *address.MacAddress) {
 	r.arpTable[ipAddress] = macAddress
 }
 

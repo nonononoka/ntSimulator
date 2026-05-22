@@ -32,8 +32,6 @@ type PacketI interface {
 	GetPayload() string
 	DecrementTTL()
 	GetTTL() int
-	UpdateSourceMac(*address.MacAddress)
-	UpdateDestMac(*address.MacAddress)
 	RemoveMacHeader()
 	AddMacHeader(*address.MacAddress, *address.MacAddress)
 }

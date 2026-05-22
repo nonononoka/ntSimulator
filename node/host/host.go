@@ -151,9 +151,9 @@ func (n *host) reassembleAndProcessPacket(lastFragment packetI.PacketI) {
 	n.GetNES().LogPacketInfo(lastFragment, "reassembled", n.NodeId())
 }
 
-func (n *host) internalSendPacket(p *packet.Packet) {
+func (n *host) internalSendPacket(p packetI.PacketI) {
 	n.GetNES().LogPacketInfo(p, "sent", n.NodeId())
-	if p.MacHeader.DestinationMac == n.MacAddress {
+	if p.GetMacHeader().DestinationMac == n.MacAddress {
 		n.ReceivePacket(p, nil)
 	} else {
 		for _, l := range n.GetLinks() {
@@ -168,6 +168,11 @@ func (n *host) sendPacket(destinationIp *address.IpAddress, data string, headerS
 	totalSize := len(data) // goだとこれはバイト数になる
 	offset := 0
 	destinationMac := n.getMacAddressFromIp(destinationIp) // destinationIPアドレスからmacアドレスをひく
+
+	// 宛先IPアドレスに対応するMacアドレスが未知の場合
+	if destinationMac == nil {
+
+	}
 
 	originalDataId := uuid.New().String()
 
@@ -188,6 +193,13 @@ func (n *host) sendPacket(destinationIp *address.IpAddress, data string, headerS
 	}
 }
 
+func (n *host) sendArpRequest(ipAddress *address.IpAddress) {
+	// ブロードキャスト
+	arpPacket := packet.NewArpP(n.MacAddress, address.NewMacAddress("FF:FF:FF:FF:FF:FF"), n.IpAddress, ipAddress, n.GetNES().CurrentTime, "request")
+	n.GetNES().LogPacketInfo(arpPacket, "ARP request", n.NodeId())
+	n.internalSendPacket(arpPacket)
+}
+
 func (n *host) createPacket(destinationIp *address.IpAddress, headerSize int, payloadSize int, payload string) {
 	destinationMac := n.getMacAddressFromIp(destinationIp)
 	p := packet.NewPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, payloadSize, n.GetNES().CurrentTime, payload)
@@ -195,7 +207,7 @@ func (n *host) createPacket(destinationIp *address.IpAddress, headerSize int, pa
 	n.sendPacket(destinationIp, payload, headerSize)
 }
 
-func (n *host) addToArpTable(ipAddress *address.IpAddress, macAddress *address.MacAddress) {
+func (n *host) AddToArpTable(ipAddress *address.IpAddress, macAddress *address.MacAddress) {
 	n.arpTable[ipAddress] = macAddress
 }
 
