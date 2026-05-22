@@ -20,6 +20,8 @@ func TestSwitchDelivery(t *testing.T) {
 	link.NewLink(s1, n1, 100000, 0.001, 0.0, nes)
 	link.NewLink(s1, n2, 100000, 0.001, 0.0, nes)
 
+	n1.AddToArpTable(n2.IpAddress, n2.MacAddress)
+
 	// headerSize=20, payloadSize=1000 → 1020 byte < MTU(1500) なのでフラグメントなし
 	n1.SetTraffic(n2.IpAddress, 8000, 1.0, 10.0, 20, 1000, 1.0)
 

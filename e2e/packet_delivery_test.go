@@ -27,6 +27,10 @@ func TestPacketDelivery(t *testing.T) {
 	r2.AddRoute("192.168.2.0/24", -1, l3)
 	r2.AddRoute("192.168.1.0/24", 2, l2)
 
+	n1.AddToArpTable(n2.IpAddress, r1.GetMacAddress(l1))
+	r1.AddToArpTable(n2.IpAddress, r2.GetMacAddress(l2))
+	r2.AddToArpTable(n2.IpAddress, n2.MacAddress)
+
 	// startTime=1.0 でパケット送信，payload=10000byte → MTU(1500)-header(40)=1460byte/fragment → 7フラグメント
 	n1.SetTraffic(n2.IpAddress, 8000, 1.0, 10.0, 40, 10000, 1.0)
 

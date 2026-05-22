@@ -33,11 +33,17 @@ func TestRoutingTableLinearTopology(t *testing.T) {
 	r4 := router.NewRouter(5, []string{"192.168.2.254/24", "10.3.4.4/24"}, nes)
 	n2 := host.NewHost(6, "192.168.2.1/24", 1500, nes)
 
-	link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
-	link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)
-	link.NewLink(r2, r3, 100000, 0.001, 0.0, nes)
-	link.NewLink(r3, r4, 200000, 0.001, 0.0, nes)
+	l1 := link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
+	l2 := link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)
+	l3 := link.NewLink(r2, r3, 100000, 0.001, 0.0, nes)
+	l4 := link.NewLink(r3, r4, 200000, 0.001, 0.0, nes)
 	link.NewLink(r4, n2, 100000, 0.001, 0.0, nes)
+
+	n1.AddToArpTable(n2.IpAddress, r1.GetMacAddress(l1))
+	r1.AddToArpTable(n2.IpAddress, r2.GetMacAddress(l2))
+	r2.AddToArpTable(n2.IpAddress, r3.GetMacAddress(l3))
+	r3.AddToArpTable(n2.IpAddress, r4.GetMacAddress(l4))
+	r4.AddToArpTable(n2.IpAddress, n2.MacAddress)
 
 	// 初回 LSA は 0.3〜0.5s に送信され，直線 4 ホップのフラッディングは数 ms で完了するため 2s で十分収束する
 	nes.RunUntil(2.0)
@@ -114,11 +120,17 @@ func TestPacketDeliveryLinearTopology(t *testing.T) {
 	r4 := router.NewRouter(5, []string{"192.168.2.254/24", "10.3.4.4/24"}, nes)
 	n2 := host.NewHost(6, "192.168.2.1/24", 1500, nes)
 
-	link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
-	link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)
-	link.NewLink(r2, r3, 100000, 0.001, 0.0, nes)
-	link.NewLink(r3, r4, 200000, 0.001, 0.0, nes)
+	l1 := link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
+	l2 := link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)
+	l3 := link.NewLink(r2, r3, 100000, 0.001, 0.0, nes)
+	l4 := link.NewLink(r3, r4, 200000, 0.001, 0.0, nes)
 	link.NewLink(r4, n2, 100000, 0.001, 0.0, nes)
+
+	n1.AddToArpTable(n2.IpAddress, r1.GetMacAddress(l1))
+	r1.AddToArpTable(n2.IpAddress, r2.GetMacAddress(l2))
+	r2.AddToArpTable(n2.IpAddress, r3.GetMacAddress(l3))
+	r3.AddToArpTable(n2.IpAddress, r4.GetMacAddress(l4))
+	r4.AddToArpTable(n2.IpAddress, n2.MacAddress)
 
 	// LSA は 0.3〜0.5s に送信されるので 2s で十分収束する。
 	// 2.5s にパケット送信（10000byte → MTU(1500)-header(40)=1460byte/fragment → 7フラグメント）
