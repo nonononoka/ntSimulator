@@ -3,6 +3,7 @@ package main
 import (
 	"nt-simulator/link"
 	"nt-simulator/node/host"
+	"nt-simulator/node/nswitch"
 	"nt-simulator/node/router"
 	"nt-simulator/nteventsched"
 )
@@ -10,11 +11,13 @@ import (
 func main() {
 	nes := nteventsched.NewNtEventSched(true, true)
 	n1 := host.NewHost(1, "192.168.1.1/24", 1500, nes)
-	r1 := router.NewRouter(2, []string{"192.168.1.254/24", "10.1.2.1/24"}, nes)
-	r2 := router.NewRouter(3, []string{"10.1.2.2/24", "10.2.3.2/24"}, nes)
-	r3 := router.NewRouter(4, []string{"10.2.3.3/24", "10.3.4.3/24"}, nes)
-	r4 := router.NewRouter(5, []string{"192.168.2.254/24", "10.3.4.4/24"}, nes)
-	n2 := host.NewHost(6, "192.168.2.1/24", 1500, nes)
+	n2 := host.NewHost(2, "192.168.2.1/24", 1500, nes)
+	r1 := router.NewRouter(3, []string{"192.168.1.254/24", "10.1.1.1/24"}, nes)
+	r2 := router.NewRouter(4, []string{"192.168.2.254/24", "10.1.1.2/24"}, nes)
+	// r3 := router.NewRouter(4, []string{"10.2.3.3/24", "10.3.4.3/24"}, nes)
+	// r4 := router.NewRouter(5, []string{"192.168.2.254/24", "10.3.4.4/24"}, nes)
+	s1 := nswitch.NewSwitch(nes, 5, "192.168.1.11/24")
+	s2 := nswitch.NewSwitch(nes, 6, "192.168.2.11/24")
 
 	l1 := link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
 	l2 := link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)
@@ -22,8 +25,6 @@ func main() {
 	l4 := link.NewLink(r3, r4, 200000, 0.001, 0.0, nes)
 	l5 := link.NewLink(r4, n2, 100000, 0.001, 0.0, nes)
 
-	// s1 := nswitch.NewSwitch(nes, 5, "192.168.1.3/24", "00:1A:2B:3C:4D:5E")
-	// s2 := nswitch.NewSwitch(nes, 6, "192.170.1.2", "00:1A:2B:3C:3D:5E")
 	// s3 := nswitch.NewSwitch(nes, 7, "192.171.1.2", "00:1A:2B:3C:2D:5E")
 	// s4 := nswitch.NewSwitch(nes, 8, "192.172.1.2", "00:1A:2B:3C:1D:6E")
 

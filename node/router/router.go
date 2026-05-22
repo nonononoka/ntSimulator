@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"nt-simulator/address"
 	"nt-simulator/link"
 	"nt-simulator/node/basenode"
@@ -36,8 +37,10 @@ type topologyEntry struct {
 
 type router struct {
 	*basenode.BaseNode
-	availableIps          map[*address.IpAddress]bool       // CIDR表記のIPアドレスを辞書に変換して，使用状況を記録
-	interfaces            map[*link.Link]*address.IpAddress // リンクとIPアドレスのマッピング
+	availableIps          map[*address.IpAddress]bool        // CIDR表記のIPアドレスを辞書に変換して，使用状況を記録
+	interfaces            map[*link.Link]*address.IpAddress  // リンクとIPアドレスのマッピング
+	macAddresses          map[*link.Link]*address.MacAddress // インタフェースとmacアドレスの組み合わせ
+	arpTable              map[*address.IpAddress]*address.MacAddress
 	routingTable          map[*address.IpAddress]routingTableEntry
 	helloInterval         float64
 	neighbors             map[int]*neighborInfo
@@ -75,6 +78,7 @@ func (s *router) NodeColor() string { return "blue" }
 func (r *router) AddLink(link *link.Link, ipAddress *address.IpAddress) {
 	if _, ok := r.interfaces[link]; !ok {
 		r.interfaces[link] = ipAddress
+		r.macAddresses[link] = address.NewMacAddress(address.GenerateRandomMAC())
 		r.markIpAsUsed(ipAddress)
 	}
 }
@@ -191,13 +195,68 @@ func (r *router) forwardPacket(p packetI.PacketI) {
 	// 宛先がOSPFのマルチキャストアドレスの場合
 	if destinationAddress.String() == "224.0.0.5/32" {
 		for l := range r.interfaces { // 全部のinterfaceにパケットを送信
+			// 異なるネットワークセグメント間では、macアドレスを付け替える必要がある
+			p.UpdateSourceMac(r.getMacAddress(l))
+			p.UpdateDestMac(r.getMacAddressFromIp(destinationAddress))
 			l.EnqueuePacket(p, r)
 		}
 	} else if ok { // ルーティング成功
+		// 異なるネットワークセグメント間では、macアドレスを付け替える必要がある
+		p.UpdateSourceMac(r.getMacAddress(entry.link))
+		p.UpdateDestMac(r.getMacAddressFromIp(destinationAddress))
 		r.GetNES().LogPacketInfo(p, "router forwarded", r.NodeId())
 		entry.link.EnqueuePacket(p, r)
 	} else {
 		r.GetNES().LogPacketInfo(p, "router dropped", r.NodeId())
 	}
 	// TODO：デフォルトルートの実装
+}
+
+func (r *router) getMacAddress(link *link.Link) *address.MacAddress {
+	return r.macAddresses[link]
+}
+
+func (r *router) getIpAddress(link *link.Link) *address.IpAddress {
+	return r.interfaces[link]
+}
+
+func (r *router) addToArpTable(ipAddress *address.IpAddress, macAddress *address.MacAddress) {
+	r.arpTable[ipAddress] = macAddress
+}
+
+func (r *router) getMacAddressFromIp(ipAddress *address.IpAddress) *address.MacAddress {
+	macAddress, ok := r.arpTable[ipAddress]
+	if ok {
+		return macAddress
+	} else {
+		return nil
+	}
+}
+
+func (r *router) printArpTable() {
+	fmt.Printf("--- ARP Table (%s) ---\n", r.NodeId()) // もしホスト名などがあれば
+	fmt.Printf("%-15s   %-17s\n", "IP Address", "MAC Address")
+	fmt.Println("---------------------------------------")
+
+	if len(r.arpTable) == 0 {
+		fmt.Println("(No entries found)")
+		return
+	}
+
+	for ip, mac := range r.arpTable {
+		// ポインタのnilチェックをしておくと安全です
+		ipStr := "<nil>"
+		if ip != nil {
+			ipStr = ip.String()
+		}
+
+		macStr := "<nil>"
+		if mac != nil {
+			macStr = mac.String()
+		}
+
+		// 左詰めで綺麗に並べて表示
+		fmt.Printf("%-15s   %-17s\n", ipStr, macStr)
+	}
+	fmt.Println("---------------------------------------")
 }

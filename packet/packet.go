@@ -81,3 +81,11 @@ func (p *Packet) GetId() string             { return p.Id }
 func (p *Packet) GetPayload() string        { return p.Payload }
 func (p *Packet) DecrementTTL()             { p.Header.TTL = p.Header.TTL - 1 }
 func (p *Packet) GetTTL() int               { return p.Header.TTL }
+
+func (p *Packet) UpdateSourceMac(newSourceMacAddress *address.MacAddress) {
+	p.Header.SourceMac = newSourceMacAddress
+}
+
+func (p *Packet) UpdateDestMac(newDestMacAddress *address.MacAddress) {
+	p.Header.DestinationMac = newDestMacAddress
+}

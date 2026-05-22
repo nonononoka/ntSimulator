@@ -18,11 +18,10 @@ type nswitch struct {
 	rootId          int                   // 初期状態では自身をルートとする
 	rootPathCost    float64               // rootまでのパスコスト
 	isRoot          bool
-	*address.MacAddress
 	*address.IpAddress
 }
 
-func NewSwitch(nes *nteventsched.NtEventSched, nodeId int, ipAddress string, macAddress string) *nswitch {
+func NewSwitch(nes *nteventsched.NtEventSched, nodeId int, ipAddress string) *nswitch {
 	s := &nswitch{
 		BaseNode:        basenode.NewBaseNode(nodeId, nes),
 		forwardingTable: make(map[*address.MacAddress]*link.Link),
@@ -30,7 +29,6 @@ func NewSwitch(nes *nteventsched.NtEventSched, nodeId int, ipAddress string, mac
 		rootId:          nodeId,
 		rootPathCost:    0,
 		isRoot:          true,
-		MacAddress:      address.NewMacAddress(macAddress),
 		IpAddress:       address.NewIPAddress(ipAddress),
 	}
 	nes.AddNode(s)

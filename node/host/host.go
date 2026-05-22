@@ -23,6 +23,7 @@ type host struct {
 	*address.IpAddress
 	arrivedCount  int
 	receivedBytes int
+	arpTable      map[*address.IpAddress]*address.MacAddress
 }
 
 func (n *host) ArrivedCount() int  { return n.arrivedCount }
@@ -30,7 +31,7 @@ func (n *host) ReceivedBytes() int { return n.receivedBytes }
 
 func NewHost(nodeId int, ipAddress string, mtu int, nes *nteventsched.NtEventSched) *host {
 	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packetI.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(address.GenerateRandomMAC()),
-		IpAddress: address.NewIPAddress(ipAddress)}
+		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[*address.IpAddress]*address.MacAddress)}
 	nes.AddNode(n)
 	return n
 }
@@ -85,7 +86,7 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 	}
 }
 
-func (n *host) SetTraffic(destinationMac string, destinationIp string, bitrate float64, startTime float64, duration float64, headerSize int, payloadSize int, burstiness float64) {
+func (n *host) SetTraffic(destinationIp string, bitrate float64, startTime float64, duration float64, headerSize int, payloadSize int, burstiness float64) {
 	// endTime := startTime + duration
 	// packetSize := headerSize + payloadSize
 	// burstinessはよくわからん
@@ -99,7 +100,7 @@ func (n *host) SetTraffic(destinationMac string, destinationIp string, bitrate f
 	// 	})
 	// }
 	n.GetNES().ScheduleEvent(startTime, func(args ...any) {
-		n.createPacket(address.NewMacAddress(destinationMac), address.NewIPAddress(destinationIp), headerSize, payloadSize, strings.Repeat("X", payloadSize))
+		n.createPacket(address.NewIPAddress(destinationIp), headerSize, payloadSize, strings.Repeat("X", payloadSize))
 	})
 }
 
@@ -162,10 +163,11 @@ func (n *host) internalSendPacket(p *packet.Packet) {
 	}
 }
 
-func (n *host) sendPacket(destinationMac *address.MacAddress, destinationIp *address.IpAddress, data string, headerSize int) {
+func (n *host) sendPacket(destinationIp *address.IpAddress, data string, headerSize int) {
 	payloadSize := n.mtu - headerSize
 	totalSize := len(data) // goだとこれはバイト数になる
 	offset := 0
+	destinationMac := n.getMacAddressFromIp(destinationIp) // destinationIPアドレスからmacアドレスをひく
 
 	originalDataId := uuid.New().String()
 
@@ -186,8 +188,50 @@ func (n *host) sendPacket(destinationMac *address.MacAddress, destinationIp *add
 	}
 }
 
-func (n *host) createPacket(destinationMac *address.MacAddress, destinationIp *address.IpAddress, headerSize int, payloadSize int, payload string) {
+func (n *host) createPacket(destinationIp *address.IpAddress, headerSize int, payloadSize int, payload string) {
+	destinationMac := n.getMacAddressFromIp(destinationIp)
 	p := packet.NewPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, payloadSize, n.GetNES().CurrentTime, payload)
 	n.GetNES().LogPacketInfo(p, "created", n.NodeId())
-	n.sendPacket(destinationMac, destinationIp, payload, headerSize)
+	n.sendPacket(destinationIp, payload, headerSize)
+}
+
+func (n *host) addToArpTable(ipAddress *address.IpAddress, macAddress *address.MacAddress) {
+	n.arpTable[ipAddress] = macAddress
+}
+
+func (n *host) getMacAddressFromIp(ipAddress *address.IpAddress) *address.MacAddress {
+	macAddress, ok := n.arpTable[ipAddress]
+	if ok {
+		return macAddress
+	} else {
+		return nil
+	}
+}
+
+func (n *host) printArpTable() {
+	fmt.Printf("--- ARP Table (%s) ---\n", n.NodeId()) // もしホスト名などがあれば
+	fmt.Printf("%-15s   %-17s\n", "IP Address", "MAC Address")
+	fmt.Println("---------------------------------------")
+
+	if len(n.arpTable) == 0 {
+		fmt.Println("(No entries found)")
+		return
+	}
+
+	for ip, mac := range n.arpTable {
+		// ポインタのnilチェックをしておくと安全です
+		ipStr := "<nil>"
+		if ip != nil {
+			ipStr = ip.String()
+		}
+
+		macStr := "<nil>"
+		if mac != nil {
+			macStr = mac.String()
+		}
+
+		// 左詰めで綺麗に並べて表示
+		fmt.Printf("%-15s   %-17s\n", ipStr, macStr)
+	}
+	fmt.Println("---------------------------------------")
 }

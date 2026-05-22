@@ -17,10 +17,10 @@ func TestSTPTreeFormation(t *testing.T) {
 
 	n1 := host.NewHost(1, "10.0.0.1/24", 1500, nes)
 	n2 := host.NewHost(2, "10.0.0.2/24", 1500, nes)
-	s1 := nswitch.NewSwitch(nes, 5, "10.0.0.5/24", "00:00:00:00:00:05")
-	s2 := nswitch.NewSwitch(nes, 6, "10.0.0.6/24", "00:00:00:00:00:06")
-	s3 := nswitch.NewSwitch(nes, 7, "10.0.0.7/24", "00:00:00:00:00:07")
-	s4 := nswitch.NewSwitch(nes, 8, "10.0.0.8/24", "00:00:00:00:00:08")
+	s1 := nswitch.NewSwitch(nes, 5, "10.0.0.5/24")
+	s2 := nswitch.NewSwitch(nes, 6, "10.0.0.6/24")
+	s3 := nswitch.NewSwitch(nes, 7, "10.0.0.7/24")
+	s4 := nswitch.NewSwitch(nes, 8, "10.0.0.8/24")
 
 	link.NewLink(s1, n1, 100000, 0.001, 0.0, nes)
 	link.NewLink(s3, n2, 100000, 0.001, 0.0, nes)

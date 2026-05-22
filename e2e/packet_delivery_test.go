@@ -28,7 +28,7 @@ func TestPacketDelivery(t *testing.T) {
 	r2.AddRoute("192.168.1.0/24", 2, l2)
 
 	// startTime=1.0 でパケット送信，payload=10000byte → MTU(1500)-header(40)=1460byte/fragment → 7フラグメント
-	n1.SetTraffic(n2.GetMacAddress().String(), "192.168.2.1/24", 8000, 1.0, 10.0, 40, 10000, 1.0)
+	n1.SetTraffic("192.168.2.1/24", 8000, 1.0, 10.0, 40, 10000, 1.0)
 
 	nes.RunUntil(10.0)
 
