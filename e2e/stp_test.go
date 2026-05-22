@@ -15,8 +15,8 @@ import (
 func TestSTPTreeFormation(t *testing.T) {
 	nes := nteventsched.NewNtEventSched(false, false)
 
-	n1 := host.NewHost(1, "00:1A:2B:3C:4D:5E", "10.0.0.1/24", 1500, nes)
-	n2 := host.NewHost(2, "00:1A:2B:3C:4D:5F", "10.0.0.2/24", 1500, nes)
+	n1 := host.NewHost(1, "10.0.0.1/24", 1500, nes)
+	n2 := host.NewHost(2, "10.0.0.2/24", 1500, nes)
 	s1 := nswitch.NewSwitch(nes, 5, "10.0.0.5/24", "00:00:00:00:00:05")
 	s2 := nswitch.NewSwitch(nes, 6, "10.0.0.6/24", "00:00:00:00:00:06")
 	s3 := nswitch.NewSwitch(nes, 7, "10.0.0.7/24", "00:00:00:00:00:07")

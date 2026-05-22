@@ -9,12 +9,12 @@ import (
 
 func main() {
 	nes := nteventsched.NewNtEventSched(true, true)
-	n1 := host.NewHost(1, "00:1A:2B:3C:4D:5E", "192.168.1.1/24", 1500, nes)
+	n1 := host.NewHost(1, "192.168.1.1/24", 1500, nes)
 	r1 := router.NewRouter(2, []string{"192.168.1.254/24", "10.1.2.1/24"}, nes)
 	r2 := router.NewRouter(3, []string{"10.1.2.2/24", "10.2.3.2/24"}, nes)
 	r3 := router.NewRouter(4, []string{"10.2.3.3/24", "10.3.4.3/24"}, nes)
 	r4 := router.NewRouter(5, []string{"192.168.2.254/24", "10.3.4.4/24"}, nes)
-	n2 := host.NewHost(6, "00:1A:2B:3C:4D:5F", "192.168.2.1/24", 1500, nes)
+	n2 := host.NewHost(6, "192.168.2.1/24", 1500, nes)
 
 	l1 := link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
 	l2 := link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)

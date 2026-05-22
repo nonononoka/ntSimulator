@@ -1,6 +1,7 @@
 package address
 
 import (
+	"crypto/rand"
 	"fmt"
 	"net"
 	"net/netip"
@@ -80,4 +81,24 @@ func (address *MacAddress) GetMacAddress() *MacAddress {
 
 func (address *MacAddress) String() string {
 	return address.address
+}
+
+// GenerateRandomMAC はランダムなMACアドレスを生成して文字列で返します
+func GenerateRandomMAC() string {
+	// MACアドレスは6バイト（48ビット）
+	buf := make([]byte, 6)
+
+	// 暗号論的に安全なランダムなバイトを生成
+	rand.Read(buf)
+
+	// 1バイト目の下位2ビット目を1にすることで、
+	// 「ローカルで管理されたアドレス（LAA）」であることを明示するのが一般的です。
+	// ※完全なランダムでよければ、この1行は消しても動作します。
+	buf[0] = (buf[0] | 2) & 0xfe
+
+	// 16進数の文字列（コロン区切り）に整形
+	macStr := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
+		buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
+
+	return macStr
 }

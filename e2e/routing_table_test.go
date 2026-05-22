@@ -26,12 +26,12 @@ import (
 func TestRoutingTableLinearTopology(t *testing.T) {
 	nes := nteventsched.NewNtEventSched(false, false)
 
-	n1 := host.NewHost(1, "00:1A:2B:3C:4D:5E", "192.168.1.1/24", 1500, nes)
+	n1 := host.NewHost(1, "192.168.1.1/24", 1500, nes)
 	r1 := router.NewRouter(2, []string{"192.168.1.254/24", "10.1.2.1/24"}, nes)
 	r2 := router.NewRouter(3, []string{"10.1.2.2/24", "10.2.3.2/24"}, nes)
 	r3 := router.NewRouter(4, []string{"10.2.3.3/24", "10.3.4.3/24"}, nes)
 	r4 := router.NewRouter(5, []string{"192.168.2.254/24", "10.3.4.4/24"}, nes)
-	n2 := host.NewHost(6, "00:1A:2B:3C:4D:5F", "192.168.2.1/24", 1500, nes)
+	n2 := host.NewHost(6, "192.168.2.1/24", 1500, nes)
 
 	link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
 	link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)
@@ -44,9 +44,9 @@ func TestRoutingTableLinearTopology(t *testing.T) {
 
 	// nexthop=-1 は直接接続（same network）を意味する
 	tests := []struct {
-		name   string
-		r      interface{ GetRoutingEntries() map[string]int }
-		want   map[string]int
+		name string
+		r    interface{ GetRoutingEntries() map[string]int }
+		want map[string]int
 	}{
 		{
 			name: "r1(ID=2)",
@@ -107,12 +107,12 @@ func TestRoutingTableLinearTopology(t *testing.T) {
 func TestPacketDeliveryLinearTopology(t *testing.T) {
 	nes := nteventsched.NewNtEventSched(false, false)
 
-	n1 := host.NewHost(1, "00:1A:2B:3C:4D:5E", "192.168.1.1/24", 1500, nes)
+	n1 := host.NewHost(1, "192.168.1.1/24", 1500, nes)
 	r1 := router.NewRouter(2, []string{"192.168.1.254/24", "10.1.2.1/24"}, nes)
 	r2 := router.NewRouter(3, []string{"10.1.2.2/24", "10.2.3.2/24"}, nes)
 	r3 := router.NewRouter(4, []string{"10.2.3.3/24", "10.3.4.3/24"}, nes)
 	r4 := router.NewRouter(5, []string{"192.168.2.254/24", "10.3.4.4/24"}, nes)
-	n2 := host.NewHost(6, "00:1A:2B:3C:4D:5F", "192.168.2.1/24", 1500, nes)
+	n2 := host.NewHost(6, "192.168.2.1/24", 1500, nes)
 
 	link.NewLink(n1, r1, 100000, 0.001, 0.0, nes)
 	link.NewLink(r1, r2, 200000, 0.001, 0.0, nes)
@@ -122,7 +122,7 @@ func TestPacketDeliveryLinearTopology(t *testing.T) {
 
 	// LSA は 0.3〜0.5s に送信されるので 2s で十分収束する。
 	// 2.5s にパケット送信（10000byte → MTU(1500)-header(40)=1460byte/fragment → 7フラグメント）
-	n1.SetTraffic("00:1A:2B:3C:4D:5F", "192.168.2.1/24", 8000, 2.5, 1.0, 40, 10000, 1.0)
+	n1.SetTraffic(n2.GetMacAddress().String(), "192.168.2.1/24", 8000, 2.5, 1.0, 40, 10000, 1.0)
 
 	// 最遅リンク(100000bps)で 1500byte の送信に 0.12s かかる。
 	// 7フラグメント × 5ホップで最大 ~4s。余裕を持って 15s まで実行する。
