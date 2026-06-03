@@ -30,6 +30,7 @@ type host struct {
 	receivedBytes      int
 	arpTable           map[string]*address.MacAddress
 	waitingForArpReply map[string][]*dataWhenReceiveArpReply
+	urlToIpMapping     map[string]string // urlとipアドレスのmapping
 }
 
 func (n *host) ArrivedCount() int  { return n.arrivedCount }
@@ -164,6 +165,18 @@ func (n *host) PrintArpTable() {
 		fmt.Printf("%-15s   %-17s\n", ip, mac)
 	}
 	fmt.Println("---------------------------------------")
+}
+
+func (n *host) startTraffic(destinationURL string) {
+	destinationIP, ok := n.resolveDestinationIp(destinationURL)
+	if !ok {
+		n.sendDNSQuery()
+	}
+
+}
+
+func (n *host) sendDNSQuery() {
+
 }
 
 // fragmentedPacketsにoriginalDataIdのところにoffset付きで保管する
@@ -320,3 +333,7 @@ func (n *host) sendArpReply(rp packetI.PacketI) {
 	n.internalSendPacket(arpReplyPacket)
 }
 
+func (n *host) resolveDestinationIp(destionaionUrl string) (string, bool) {
+	v, ok := n.urlToIpMapping[destionaionUrl]
+	return v, ok
+}
