@@ -105,34 +105,38 @@ func (nes *NtEventSched) GenerateSummary() {
 	}
 
 	for _, log := range nes.packetLogs {
+		// originalDataId == "" は断片化前の元パケット ("created" イベントのみ) なので無視
+		if log.originalDataId == "" {
+			continue
+		}
+		if log.source == nil || log.destination == nil {
+			continue
+		}
 		key := log.source.String() + " -> " + log.destination.String()
 
-		if log.originalDataId != "" {
-			// フラグメント: originalDataId でグループ化して1論理パケットとして扱う
-			if _, ok := fragGroups[log.originalDataId]; !ok {
-				fragGroups[log.originalDataId] = &fragGroup{
-					flowKey:       key,
-					firstCreation: math.MaxFloat64,
-				}
-			}
-			fg := fragGroups[log.originalDataId]
-			for _, e := range log.events {
-				if e.event == "sent" {
-					fg.hasSent = true
-					fg.totalBytes += float64(log.size)
-				}
-				if e.event == "reassembled" || e.event == "processed" {
-					fg.isReceived = true
-				}
-			}
-			if log.creationTime < fg.firstCreation {
-				fg.firstCreation = log.creationTime
-			}
-			if log.arrivalTime > 0 && log.arrivalTime > fg.lastArrival {
-				fg.lastArrival = log.arrivalTime
+		// フラグメント: originalDataId でグループ化して1論理パケットとして扱う
+		if _, ok := fragGroups[log.originalDataId]; !ok {
+			fragGroups[log.originalDataId] = &fragGroup{
+				flowKey:       key,
+				firstCreation: math.MaxFloat64,
 			}
 		}
-		// originalDataId == "" は断片化前の元パケット ("created" イベントのみ) なので無視
+		fg := fragGroups[log.originalDataId]
+		for _, e := range log.events {
+			if e.event == "sent" {
+				fg.hasSent = true
+				fg.totalBytes += float64(log.size)
+			}
+			if e.event == "reassembled" || e.event == "processed" {
+				fg.isReceived = true
+			}
+		}
+		if log.creationTime < fg.firstCreation {
+			fg.firstCreation = log.creationTime
+		}
+		if log.arrivalTime > 0 && log.arrivalTime > fg.lastArrival {
+			fg.lastArrival = log.arrivalTime
+		}
 	}
 
 	for _, fg := range fragGroups {

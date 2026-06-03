@@ -6,7 +6,7 @@ import (
 	"nt-simulator/address"
 )
 
-type ArpPayload struct {
+type arpPayload struct {
 	Operation string `json:"operation"`
 	SourceMac string `json:"sourceMac"`
 	DestMac   string `json:"destMac"`
@@ -19,7 +19,7 @@ type ArpP struct {
 }
 
 func NewArpP(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, currentTime float64, operation string) *ArpP {
-	p, err := json.Marshal(ArpPayload{Operation: operation, SourceMac: s.String(), DestMac: d.String(), SourceIp: sourceip.String(), DestIp: destip.String()})
+	p, err := json.Marshal(arpPayload{Operation: operation, SourceMac: s.String(), DestMac: d.String(), SourceIp: sourceip.String(), DestIp: destip.String()})
 	if err != nil {
 		panic(fmt.Sprintf("Hello payload marshal error: %v", err))
 	}
@@ -28,4 +28,10 @@ func NewArpP(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpA
 	return &ArpP{
 		Packet: *NewPacket(s, d, sourceip, destip, 1, 28, 28, currentTime, payload),
 	}
+}
+
+func (a *ArpP) ParsePayload() (arpPayload, error) {
+	var ap arpPayload
+	err := json.Unmarshal([]byte(a.Payload), &ap)
+	return ap, err
 }

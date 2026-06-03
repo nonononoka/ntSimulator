@@ -14,6 +14,11 @@ import (
 	"github.com/google/uuid"
 )
 
+type dataWhenReceiveArpReply struct {
+	data       string
+	headerSize int
+}
+
 // Nodeの構造体
 type host struct {
 	*basenode.BaseNode
@@ -21,9 +26,10 @@ type host struct {
 	fragmentedPackets map[string]map[int]packetI.PacketI
 	*address.MacAddress
 	*address.IpAddress
-	arrivedCount  int
-	receivedBytes int
-	arpTable      map[*address.IpAddress]*address.MacAddress
+	arrivedCount       int
+	receivedBytes      int
+	arpTable           map[string]*address.MacAddress
+	waitingForArpReply map[string][]*dataWhenReceiveArpReply
 }
 
 func (n *host) ArrivedCount() int  { return n.arrivedCount }
@@ -31,7 +37,7 @@ func (n *host) ReceivedBytes() int { return n.receivedBytes }
 
 func NewHost(nodeId int, ipAddress string, mtu int, nes *nteventsched.NtEventSched) *host {
 	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packetI.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(address.GenerateRandomMAC()),
-		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[*address.IpAddress]*address.MacAddress)}
+		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[string]*address.MacAddress), waitingForArpReply: make(map[string][]*dataWhenReceiveArpReply)}
 	nes.AddNode(n)
 	return n
 }
@@ -65,7 +71,42 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 		n.GetNES().LogPacketInfo(p, "lost", n.NodeId())
 		return
 	}
+	// arppacketを受け取った場合の処理
+	// 自分が知りたいdest ipアドレスだったらreplyを返す
+	if p.GetMacHeader().DestinationMac.String() == "FF:FF:FF:FF:FF:FF" {
+		if arpP, ok := p.(*packet.ArpP); ok {
+			ap, err := arpP.ParsePayload()
+			if err != nil {
+				fmt.Printf("arp parse error: %v\n", err)
+				return
+			}
+			if ap.Operation == "request" && ap.DestIp == n.GetIPAddresses()[0].String() {
+				n.sendArpReply(arpP)
+				return
+			}
+		}
+	}
+
+	// 自分が知りたいIPアドレスだった場合の処理
 	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() && p.GetIpHeader().DestIp.String() == n.IpAddress.String() {
+		// arpリプライが返ってきた場合の処理
+		if arpP, ok := p.(*packet.ArpP); ok {
+			ap, err := arpP.ParsePayload()
+			if err != nil {
+				fmt.Printf("arp parse error: %v\n", err)
+				return
+			}
+			if ap.Operation == "reply" && ap.DestIp == n.GetIPAddresses()[0].String() {
+				n.GetNES().LogPacketInfo(arpP, "ARP Reply received", n.NodeId())
+				sourceIp := address.NewIPAddress(ap.SourceIp)
+				sourceMac := address.NewMacAddress(ap.SourceMac)
+				n.AddToArpTable(sourceIp, sourceMac)
+				n.onArpReplyPacketReceived(ap.SourceIp)
+				return
+			}
+		}
+
+		// 自分がarpパケットを送って、その返事が返ってきたとき
 		n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
 		p.SetArrived(n.GetNES().CurrentTime)
 		n.arrivedCount++
@@ -106,6 +147,23 @@ func (n *host) SetTraffic(destinationIp *address.IpAddress, bitrate float64, sta
 
 func (n *host) GetIPAddresses() []*address.IpAddress {
 	return []*address.IpAddress{n.IpAddress}
+}
+
+func (n *host) PrintArpTable() {
+	fmt.Printf("--- ARP Table (%v) ---\n", n.NodeId()) // もしホスト名などがあれば
+	fmt.Printf("%-15s   %-17s\n", "IP Address", "MAC Address")
+	fmt.Println("---------------------------------------")
+
+	if len(n.arpTable) == 0 {
+		fmt.Println("(No entries found)")
+		return
+	}
+
+	for ip, mac := range n.arpTable {
+		// 左詰めで綺麗に並べて表示
+		fmt.Printf("%-15s   %-17s\n", ip, mac)
+	}
+	fmt.Println("---------------------------------------")
 }
 
 // fragmentedPacketsにoriginalDataIdのところにoffset付きで保管する
@@ -169,9 +227,12 @@ func (n *host) sendPacket(destinationIp *address.IpAddress, data string, headerS
 	offset := 0
 	destinationMac := n.getMacAddressFromIp(destinationIp) // destinationIPアドレスからmacアドレスをひく
 
-	// 宛先IPアドレスに対応するMacアドレスが未知の場合
+	// 宛先IPアドレスに対応するMacアドレスが未知の場合、arpリクエストを送信して終わり
 	if destinationMac == nil {
-
+		// ARPリクエストを送信して、パケットを待機リストに追加する
+		n.sendArpRequest(destinationIp)
+		n.waitingForArpReply[destinationIp.String()] = append(n.waitingForArpReply[destinationIp.String()], &dataWhenReceiveArpReply{data: data, headerSize: headerSize})
+		return
 	}
 
 	originalDataId := uuid.New().String()
@@ -208,11 +269,11 @@ func (n *host) createPacket(destinationIp *address.IpAddress, headerSize int, pa
 }
 
 func (n *host) AddToArpTable(ipAddress *address.IpAddress, macAddress *address.MacAddress) {
-	n.arpTable[ipAddress] = macAddress
+	n.arpTable[ipAddress.String()] = macAddress
 }
 
 func (n *host) getMacAddressFromIp(ipAddress *address.IpAddress) *address.MacAddress {
-	macAddress, ok := n.arpTable[ipAddress]
+	macAddress, ok := n.arpTable[ipAddress.String()]
 	if ok {
 		return macAddress
 	} else {
@@ -230,20 +291,32 @@ func (n *host) printArpTable() {
 		return
 	}
 
-	for ip, mac := range n.arpTable {
-		// ポインタのnilチェックをしておくと安全です
-		ipStr := "<nil>"
-		if ip != nil {
-			ipStr = ip.String()
-		}
-
+	for ipStr, mac := range n.arpTable {
 		macStr := "<nil>"
 		if mac != nil {
 			macStr = mac.String()
 		}
-
-		// 左詰めで綺麗に並べて表示
 		fmt.Printf("%-15s   %-17s\n", ipStr, macStr)
 	}
 	fmt.Println("---------------------------------------")
 }
+
+// arpリプライを受信したら、待機中のパケットに対して処理を行う
+func (n *host) onArpReplyPacketReceived(ipAddress string) {
+	if _, ok := n.waitingForArpReply[ipAddress]; ok {
+		destinationIP := address.NewIPAddress(ipAddress)
+		for _, v := range n.waitingForArpReply[ipAddress] {
+			n.sendPacket(destinationIP, v.data, v.headerSize)
+		}
+		n.waitingForArpReply[ipAddress] = []*dataWhenReceiveArpReply{}
+	}
+}
+
+// arpリクエストを受け取って、宛先IPがこのノードのIPと一致していた場合の処理
+func (n *host) sendArpReply(rp packetI.PacketI) {
+	// 送られてきた元のノードに送り返す
+	arpReplyPacket := packet.NewArpP(n.GetMacAddress(), rp.GetMacHeader().SourceMac, n.GetIPAddresses()[0], rp.GetIpHeader().SourceIp, n.GetNES().CurrentTime, "reply")
+	n.GetNES().LogPacketInfo(arpReplyPacket, "ARP Reply", n.NodeId())
+	n.internalSendPacket(arpReplyPacket)
+}
+
