@@ -84,6 +84,8 @@ func (r *router) AddLink(link *link.Link, ipAddress *address.IpAddress) {
 		r.interfaces[link] = ipAddress
 		r.macAddresses[link] = address.NewMacAddress(address.GenerateRandomMAC())
 		r.markIpAsUsed(ipAddress)
+		networkCIDR := ipAddress.ConvertToNetworkCIDR()
+		r.routingTable[networkCIDR] = routingTableEntry{nexthop: -1, link: link}
 	}
 }
 

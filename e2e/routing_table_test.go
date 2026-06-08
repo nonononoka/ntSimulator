@@ -134,7 +134,7 @@ func TestPacketDeliveryLinearTopology(t *testing.T) {
 
 	// LSA は 0.3〜0.5s に送信されるので 2s で十分収束する。
 	// 2.5s にパケット送信（10000byte → MTU(1500)-header(40)=1460byte/fragment → 7フラグメント）
-	n1.SetTraffic(n2.IpAddress, 8000, 2.5, 1.0, 40, 10000, 1.0)
+	n1.StartTraffic(n2.IpAddress.String(), 2.5, 40, 10000)
 
 	// 最遅リンク(100000bps)で 1500byte の送信に 0.12s かかる。
 	// 7フラグメント × 5ホップで最大 ~4s。余裕を持って 15s まで実行する。

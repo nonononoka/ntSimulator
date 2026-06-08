@@ -36,14 +36,14 @@ func TestArpTableSetting(t *testing.T) {
 	r2.AddToArpTable(n1.IpAddress, r1.GetMacAddress(l3))
 	r2.AddToArpTable(n2.IpAddress, n2.MacAddress)
 
-	n1.SetTraffic(n2.IpAddress, 10000, 1.0, 10.0, 40.0, 10000, 1.0)
+	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000)
 	nes.RunUntil(50.0)
 
 	const wantFragments = 7 // ceil(10000 / (1500-40))
 	if n2.ArrivedCount() != wantFragments {
 		t.Errorf("n2 arrived fragments = %d, want %d", n2.ArrivedCount(), wantFragments)
 	}
-	const wantBytes = 10000 // SetTraffic で指定した payloadSize
+	const wantBytes = 10000 // StartTraffic で指定した payloadSize
 	if n2.ReceivedBytes() != wantBytes {
 		t.Errorf("n2 received bytes = %d, want %d", n2.ReceivedBytes(), wantBytes)
 	}

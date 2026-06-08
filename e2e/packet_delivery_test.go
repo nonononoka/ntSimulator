@@ -32,7 +32,7 @@ func TestPacketDelivery(t *testing.T) {
 	r2.AddToArpTable(n2.IpAddress, n2.MacAddress)
 
 	// startTime=1.0 でパケット送信，payload=10000byte → MTU(1500)-header(40)=1460byte/fragment → 7フラグメント
-	n1.SetTraffic(n2.IpAddress, 8000, 1.0, 10.0, 40, 10000, 1.0)
+	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000)
 
 	nes.RunUntil(10.0)
 
@@ -40,7 +40,7 @@ func TestPacketDelivery(t *testing.T) {
 	if n2.ArrivedCount() != wantFragments {
 		t.Errorf("n2 arrived fragments = %d, want %d", n2.ArrivedCount(), wantFragments)
 	}
-	const wantBytes = 10000 // SetTraffic で指定した payloadSize
+	const wantBytes = 10000 // StartTraffic で指定した payloadSize
 	if n2.ReceivedBytes() != wantBytes {
 		t.Errorf("n2 received bytes = %d, want %d", n2.ReceivedBytes(), wantBytes)
 	}

@@ -25,15 +25,15 @@ func TestFourHostSwitchRing(t *testing.T) {
 	link.NewLink(n3, s1, 200000, 0.01, 0.0, nes)
 	link.NewLink(n4, s1, 200000, 0.01, 0.0, nes)
 
-	n1.SetTraffic(n2.IpAddress, 10000, 1.0, 10.0, 40, 10000, 1.0)
-	n2.SetTraffic(n3.IpAddress, 10000, 1.0, 10.0, 40, 10000, 1.0)
-	n3.SetTraffic(n4.IpAddress, 10000, 1.0, 10.0, 40, 10000, 1.0)
-	n4.SetTraffic(n1.IpAddress, 10000, 1.0, 10.0, 40, 10000, 1.0)
+	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000)
+	n2.StartTraffic(n3.IpAddress.String(), 1.0, 40, 10000)
+	n3.StartTraffic(n4.IpAddress.String(), 1.0, 40, 10000)
+	n4.StartTraffic(n1.IpAddress.String(), 1.0, 40, 10000)
 
 	nes.RunUntil(50.0)
 
 	const wantFragments = 7 // ceil(10000 / (1500-40))
-	const wantBytes = 10000 // SetTraffic で指定した payloadSize
+	const wantBytes = 10000 // StartTraffic で指定した payloadSize
 
 	if n1.ArrivedCount() != wantFragments {
 		t.Errorf("n1 arrived fragments = %d, want %d", n1.ArrivedCount(), wantFragments)

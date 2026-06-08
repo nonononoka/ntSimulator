@@ -2,6 +2,7 @@ package host
 
 import (
 	"fmt"
+	"net"
 	"nt-simulator/address"
 	"nt-simulator/link"
 	"nt-simulator/node/basenode"
@@ -19,6 +20,12 @@ type dataWhenReceiveArpReply struct {
 	headerSize int
 }
 
+type dataWhenReceiveDNSReply struct {
+	startTime   float64
+	headerSize  int
+	payloadSize int
+}
+
 // Nodeの構造体
 type host struct {
 	*basenode.BaseNode
@@ -30,7 +37,9 @@ type host struct {
 	receivedBytes      int
 	arpTable           map[string]*address.MacAddress
 	waitingForArpReply map[string][]*dataWhenReceiveArpReply
+	waitingForDNSReply map[string][]*dataWhenReceiveDNSReply
 	urlToIpMapping     map[string]string // urlとipアドレスのmapping
+	dnsServerIp        string
 }
 
 func (n *host) ArrivedCount() int  { return n.arrivedCount }
@@ -38,7 +47,7 @@ func (n *host) ReceivedBytes() int { return n.receivedBytes }
 
 func NewHost(nodeId int, ipAddress string, mtu int, nes *nteventsched.NtEventSched) *host {
 	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packetI.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(address.GenerateRandomMAC()),
-		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[string]*address.MacAddress), waitingForArpReply: make(map[string][]*dataWhenReceiveArpReply)}
+		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[string]*address.MacAddress), waitingForArpReply: make(map[string][]*dataWhenReceiveArpReply), waitingForDNSReply: make(map[string][]*dataWhenReceiveDNSReply), urlToIpMapping: make(map[string]string), dnsServerIp: "192.168.1.200/24"}
 	nes.AddNode(n)
 	return n
 }
@@ -107,7 +116,19 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 			}
 		}
 
-		// 自分がarpパケットを送って、その返事が返ってきたとき
+		if dnsP, ok := p.(*packet.DNSP); ok {
+			dp, err := dnsP.ParsePayload()
+			if err != nil {
+				fmt.Printf("dns parse error: %v\n", err)
+				return
+			}
+			n.GetNES().LogPacketInfo(dnsP, "DNS Reply received", n.NodeId())
+			if dp.QueryDomain != "" && dp.ResolvedIp != "" {
+				n.onDNSReplyPacketReceived(dp.QueryDomain, dp.ResolvedIp)
+			}
+			return
+		}
+
 		n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
 		p.SetArrived(n.GetNES().CurrentTime)
 		n.arrivedCount++
@@ -128,7 +149,7 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 	}
 }
 
-func (n *host) SetTraffic(destinationIp *address.IpAddress, bitrate float64, startTime float64, duration float64, headerSize int, payloadSize int, burstiness float64) {
+func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, headerSize int, payloadSize int) {
 	// endTime := startTime + duration
 	// packetSize := headerSize + payloadSize
 	// burstinessはよくわからん
@@ -141,7 +162,11 @@ func (n *host) SetTraffic(destinationIp *address.IpAddress, bitrate float64, sta
 	// 		n.createPacket(address.NewMacAddress(destinationMac), address.NewIPAddress(destinationIp), headerSize, payloadSize, strings.Repeat("X", payloadSize))
 	// 	})
 	// }
-	n.GetNES().ScheduleEvent(startTime, func(args ...any) {
+	sendTime := startTime
+	if n.GetNES().CurrentTime > sendTime {
+		sendTime = n.GetNES().CurrentTime
+	}
+	n.GetNES().ScheduleEvent(sendTime, func(args ...any) {
 		n.createPacket(destinationIp, headerSize, payloadSize, strings.Repeat("X", payloadSize))
 	})
 }
@@ -167,16 +192,34 @@ func (n *host) PrintArpTable() {
 	fmt.Println("---------------------------------------")
 }
 
-func (n *host) startTraffic(destinationURL string) {
-	destinationIP, ok := n.resolveDestinationIp(destinationURL)
-	if !ok {
-		n.sendDNSQuery()
-	}
-
+func (n *host) StartTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int) {
+	n.GetNES().ScheduleEvent(startTime, func(args ...any) {
+		n.attemptToStartTraffic(destinationURL, startTime, headerSize, payloadSize)
+	})
 }
 
-func (n *host) sendDNSQuery() {
+func (n *host) attemptToStartTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int) {
+	destinationIP, ok := n.resolveDestinationIp(destinationURL)
+	if !ok {
+		n.sendDNSQueryAndSetTraffic(destinationURL, startTime, headerSize, payloadSize)
+	} else {
+		n.setTraffic(address.NewIPAddress(destinationIP), startTime, headerSize, payloadSize)
+	}
+}
 
+func (n *host) sendDNSQueryAndSetTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int) {
+	n.waitingForDNSReply[destinationURL] = append(n.waitingForDNSReply[destinationURL], &dataWhenReceiveDNSReply{
+		startTime:   startTime,
+		headerSize:  headerSize,
+		payloadSize: payloadSize,
+	})
+	n.sendDNSQuery(destinationURL)
+}
+
+func (n *host) sendDNSQuery(destinationURL string) {
+	p := packet.NewDNSP(n.MacAddress, address.NewMacAddress("FF:FF:FF:FF:FF:FF"), n.IpAddress, address.NewIPAddress(n.dnsServerIp), n.GetNES().CurrentTime, destinationURL, "A", "")
+	n.GetNES().LogPacketInfo(p, "DNS Query", n.NodeId())
+	n.internalSendPacket(p)
 }
 
 // fragmentedPacketsにoriginalDataIdのところにoffset付きで保管する
@@ -314,6 +357,22 @@ func (n *host) printArpTable() {
 	fmt.Println("---------------------------------------")
 }
 
+// DNSリプライを受信したら、待機中のパケットに対して処理を行う
+func (n *host) onDNSReplyPacketReceived(query string, ipAddress string) {
+	n.addDNSRecord(query, ipAddress)
+	if _, ok := n.waitingForDNSReply[query]; ok {
+		destinationIP := address.NewIPAddress(ipAddress)
+		for _, v := range n.waitingForDNSReply[query] {
+			n.setTraffic(destinationIP, v.startTime, v.headerSize, v.payloadSize)
+		}
+		n.waitingForDNSReply[query] = []*dataWhenReceiveDNSReply{}
+	}
+}
+
+func (n *host) addDNSRecord(queryDomain string, resolvedIp string) {
+	n.urlToIpMapping[queryDomain] = resolvedIp
+}
+
 // arpリプライを受信したら、待機中のパケットに対して処理を行う
 func (n *host) onArpReplyPacketReceived(ipAddress string) {
 	if _, ok := n.waitingForArpReply[ipAddress]; ok {
@@ -334,6 +393,11 @@ func (n *host) sendArpReply(rp packetI.PacketI) {
 }
 
 func (n *host) resolveDestinationIp(destionaionUrl string) (string, bool) {
-	v, ok := n.urlToIpMapping[destionaionUrl]
-	return v, ok
+	if v, ok := n.urlToIpMapping[destionaionUrl]; ok {
+		return v, true
+	}
+	if _, _, err := net.ParseCIDR(destionaionUrl); err == nil {
+		return destionaionUrl, true
+	}
+	return "", false
 }
