@@ -34,17 +34,19 @@ func NewIPAddress(address string) *IpAddress {
 	return &IpAddress{address: address}
 }
 
-func isValidMacAddress(address string) bool {
-	_, err := net.ParseMAC(address)
-	return err == nil
-}
-
-func isValidCIDRNotation(address string) bool {
-	_, _, err := net.ParseCIDR(address)
+func (address *IpAddress) IsNetworkAddress() bool {
+	// CIDR表記をパース
+	// ip: 入力されたIPそのもの (例: 192.168.1.0)
+	// ipNet: ネットワーク情報 (ipNet.IP はそのネットワークのアドレス、例: 192.168.1.0)
+	ip, ipNet, err := net.ParseCIDR(address.String())
 	if err != nil {
+		// CIDRの形式自体が不正な場合はネットワークアドレスではない
 		return false
 	}
-	return true
+
+	// 入力されたIPが、そのネットワークの開始アドレス（ネットワークアドレス）と一致するか判定
+	// ip.Equal はIPv4/IPv6の表記揺れ（マッピング）も吸収してくれます
+	return ip.Equal(ipNet.IP)
 }
 
 func (address *IpAddress) GetNetworkAddress() net.IP {
@@ -101,4 +103,17 @@ func GenerateRandomMAC() string {
 		buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
 
 	return macStr
+}
+
+func isValidMacAddress(address string) bool {
+	_, err := net.ParseMAC(address)
+	return err == nil
+}
+
+func isValidCIDRNotation(address string) bool {
+	_, _, err := net.ParseCIDR(address)
+	if err != nil {
+		return false
+	}
+	return true
 }

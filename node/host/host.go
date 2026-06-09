@@ -2,6 +2,7 @@ package host
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"nt-simulator/address"
 	"nt-simulator/link"
@@ -49,6 +50,7 @@ func NewHost(nodeId int, ipAddress string, mtu int, nes *nteventsched.NtEventSch
 	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packetI.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(address.GenerateRandomMAC()),
 		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[string]*address.MacAddress), waitingForArpReply: make(map[string][]*dataWhenReceiveArpReply), waitingForDNSReply: make(map[string][]*dataWhenReceiveDNSReply), urlToIpMapping: make(map[string]string), dnsServerIp: "192.168.1.200/24"}
 	nes.AddNode(n)
+	n.scheduleDHCPPacket()
 	return n
 }
 
@@ -149,28 +151,6 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 	}
 }
 
-func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, headerSize int, payloadSize int) {
-	// endTime := startTime + duration
-	// packetSize := headerSize + payloadSize
-	// burstinessはよくわからん
-	// このintervalで送れば，理論上指定したbitrateになる．
-	// interval := float64(packetSize*8) / bitrate * burstiness
-
-	// 全部のcreatePacketのスケジュールを最初にしておく
-	// for t := startTime; t < endTime; t += interval {
-	// 	n.GetNES().ScheduleEvent(t, func(args ...any) {
-	// 		n.createPacket(address.NewMacAddress(destinationMac), address.NewIPAddress(destinationIp), headerSize, payloadSize, strings.Repeat("X", payloadSize))
-	// 	})
-	// }
-	sendTime := startTime
-	if n.GetNES().CurrentTime > sendTime {
-		sendTime = n.GetNES().CurrentTime
-	}
-	n.GetNES().ScheduleEvent(sendTime, func(args ...any) {
-		n.createPacket(destinationIp, headerSize, payloadSize, strings.Repeat("X", payloadSize))
-	})
-}
-
 func (n *host) GetIPAddresses() []*address.IpAddress {
 	return []*address.IpAddress{n.IpAddress}
 }
@@ -195,6 +175,39 @@ func (n *host) PrintArpTable() {
 func (n *host) StartTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int) {
 	n.GetNES().ScheduleEvent(startTime, func(args ...any) {
 		n.attemptToStartTraffic(destinationURL, startTime, headerSize, payloadSize)
+	})
+}
+
+func (n *host) scheduleDHCPPacket() {
+	if n.IpAddress.IsNetworkAddress() {
+		randomDelay := 0.5 + rand.Float64()*0.1
+		n.GetNES().ScheduleEvent(n.GetNES().CurrentTime+randomDelay, func(args ...any) { n.sendDHCPDiscover() })
+	}
+}
+
+func (n *host) sendDHCPDiscover() {
+
+}
+
+func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, headerSize int, payloadSize int) {
+	// endTime := startTime + duration
+	// packetSize := headerSize + payloadSize
+	// burstinessはよくわからん
+	// このintervalで送れば，理論上指定したbitrateになる．
+	// interval := float64(packetSize*8) / bitrate * burstiness
+
+	// 全部のcreatePacketのスケジュールを最初にしておく
+	// for t := startTime; t < endTime; t += interval {
+	// 	n.GetNES().ScheduleEvent(t, func(args ...any) {
+	// 		n.createPacket(address.NewMacAddress(destinationMac), address.NewIPAddress(destinationIp), headerSize, payloadSize, strings.Repeat("X", payloadSize))
+	// 	})
+	// }
+	sendTime := startTime
+	if n.GetNES().CurrentTime > sendTime {
+		sendTime = n.GetNES().CurrentTime
+	}
+	n.GetNES().ScheduleEvent(sendTime, func(args ...any) {
+		n.createPacket(destinationIp, headerSize, payloadSize, strings.Repeat("X", payloadSize))
 	})
 }
 
