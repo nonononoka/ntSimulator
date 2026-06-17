@@ -81,6 +81,7 @@ func (p *Packet) CreationTime() float64 {
 }
 
 func (p *Packet) GetIpHeader() packetI.IpHeader   { return p.IpHeader }
+func (p *Packet) SetIpHeader(h packetI.IpHeader)  { p.IpHeader = h }
 func (p *Packet) GetMacHeader() packetI.MacHeader { return p.MacHeader }
 func (p *Packet) GetSize() int                    { return p.Size }
 func (p *Packet) GetId() string                   { return p.Id }

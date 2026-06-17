@@ -27,6 +27,7 @@ type PacketI interface {
 	PrintPacket()
 	GetMacHeader() MacHeader
 	GetIpHeader() IpHeader
+	SetIpHeader(header IpHeader)
 	GetSize() int
 	GetId() string
 	GetPayload() string

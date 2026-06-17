@@ -49,6 +49,9 @@ type router struct {
 	isTopologyInitialized bool
 	topologyDatabase      map[int]topologyEntry // 各router idのリンク情報を管理
 	waitingForArpReply    map[string][]packetI.PacketI
+	natEnabled            bool
+	externalIP            *address.IpAddress
+	natTable              map[string]string
 }
 
 func NewRouter(nodeId int, ipAddreses []string, nes *nteventsched.NtEventSched) *router {
@@ -69,6 +72,34 @@ func NewRouter(nodeId int, ipAddreses []string, nes *nteventsched.NtEventSched) 
 		isTopologyInitialized: false,
 		topologyDatabase:      make(map[int]topologyEntry), // ルーターIDごとのLsaの情報を管理
 		waitingForArpReply:    make(map[string][]packetI.PacketI),
+	}
+	nes.AddNode(r)
+	r.scheduleHelloPacket()
+	r.scheduleLsaPacket()
+	return r
+}
+
+func NewRouterNATEnabled(nodeId int, ipAddreses []string, nes *nteventsched.NtEventSched, externalIP *address.IpAddress) *router {
+	availableIps := make(map[*address.IpAddress]bool)
+	for _, ip := range ipAddreses {
+		availableIps[address.NewIPAddress(ip)] = false
+	}
+	r := &router{
+		BaseNode:              basenode.NewBaseNode(nodeId, nes),
+		availableIps:          availableIps,
+		interfaces:            make(map[*link.Link]*address.IpAddress),
+		macAddresses:          make(map[*link.Link]*address.MacAddress),
+		arpTable:              make(map[string]*address.MacAddress),
+		routingTable:          make(map[*address.IpAddress]routingTableEntry),
+		helloInterval:         10.0,
+		neighbors:             make(map[int]*neighborInfo),
+		lsaInterval:           10.0,
+		isTopologyInitialized: false,
+		topologyDatabase:      make(map[int]topologyEntry), // ルーターIDごとのLsaの情報を管理
+		waitingForArpReply:    make(map[string][]packetI.PacketI),
+		natEnabled:            true,
+		externalIP:            externalIP,
+		natTable:              make(map[string]string),
 	}
 	nes.AddNode(r)
 	r.scheduleHelloPacket()
@@ -140,6 +171,11 @@ func (r *router) ReceivePacket(p packetI.PacketI, receivedLink *link.Link) {
 		for _, interfaceCIDR := range r.interfaces {
 			if destIp.IsSameNetwork(interfaceCIDR) {
 				if destIp.String() == interfaceCIDR.String() { // パケットがルーター宛
+					if r.natEnabled && r.externalIP != nil && destIp.String() == r.externalIP.String() {
+						r.applyNAT(p, "inbound")
+						r.forwardPacket(p)
+						return
+					}
 					r.GetNES().LogPacketInfo(p, "arrived to router", r.NodeId())
 				} else { // ルーター宛ではないが，そのルーターと同じネットワークだった場合
 					r.forwardPacket(p)
@@ -260,6 +296,17 @@ func (r *router) forwardPacket(p packetI.PacketI) {
 
 // 異なるネットワークセグメント間では、macアドレスを付け替える必要がある
 func (r *router) proceedAndEnqueuePacket(p packetI.PacketI, l *link.Link) {
+	if r.natEnabled {
+		sourceInternal := r.isInternalIp(p.GetIpHeader().SourceIp)
+		destInternal := r.isInternalIp(p.GetIpHeader().DestIp)
+		if sourceInternal && !destInternal {
+			// 内部ネットワークから外部ネットワークへのパケット
+			r.applyNAT(p, "outbound")
+		} else if !sourceInternal && r.externalIP != nil && p.GetIpHeader().DestIp.String() == r.externalIP.String() {
+			r.applyNAT(p, "inbound")
+		}
+	}
+
 	sourceMac := r.GetMacAddress(l)
 	destMac := r.getMacAddressFromIp(p.GetIpHeader().DestIp)
 	destIp := p.GetIpHeader().DestIp
@@ -311,4 +358,37 @@ func (r *router) getMacAddressFromIp(ipAddress *address.IpAddress) *address.MacA
 	} else {
 		return nil
 	}
+}
+
+func (r *router) applyNAT(p packetI.PacketI, direction string) {
+	switch direction {
+	case "outbound":
+		originalSrcIP := p.GetIpHeader().SourceIp
+		r.natTable[originalSrcIP.String()] = r.externalIP.String()
+		header := p.GetIpHeader()
+		header.SourceIp = r.externalIP
+		p.SetIpHeader(header)
+	case "inbound":
+		internalIP, ok := r.lookupInternalIPByExternal(p.GetIpHeader().DestIp.String())
+		if !ok {
+			return
+		}
+		header := p.GetIpHeader()
+		header.DestIp = address.NewIPAddress(internalIP)
+		p.SetIpHeader(header)
+	}
+}
+
+func (r *router) lookupInternalIPByExternal(externalIP string) (string, bool) {
+	for internalIP, mappedExternalIP := range r.natTable {
+		if mappedExternalIP == externalIP {
+			return internalIP, true
+		}
+	}
+	return "", false
+}
+
+// IPアドレスが192.168.0.0/16に属しているかを判断する
+func (r *router) isInternalIp(ipAddress *address.IpAddress) bool {
+	return ipAddress.IsSameNetwork(address.NewIPAddress("192.168.0.0/16"))
 }
