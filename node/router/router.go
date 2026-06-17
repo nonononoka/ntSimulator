@@ -134,11 +134,11 @@ func (r *router) ReceivePacket(p packetI.PacketI, receivedLink *link.Link) {
 			return
 		}
 		switch ap.Operation {
-		case "request":
+		case packet.ArpOperationRequest:
 			{
 				r.onArpRequestPacketReceived(arpP, receivedLink)
 			}
-		case "reply":
+		case packet.ArpOperationReply:
 			{
 				r.onArpReplyPacketReceived(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac)
 			}
@@ -282,7 +282,7 @@ func (r *router) forwardPacket(p packetI.PacketI) {
 	entry, ok := r.getRoute(destinationAddress) // このdestination Addressに行くなら，このlinkを辿ってこのIPアドレスに行け
 
 	// 宛先がOSPFのマルチキャストアドレスの場合
-	if destinationAddress.String() == "224.0.0.5/32" {
+	if destinationAddress.String() == address.OSPFAllSPFRoutersIP {
 		for l := range r.interfaces { // 全部のinterfaceにパケットを送信
 			r.proceedAndEnqueuePacket(p, l)
 		}
@@ -323,7 +323,7 @@ func (r *router) proceedAndEnqueuePacket(p packetI.PacketI, l *link.Link) {
 }
 
 func (r *router) sendArpRequest(l *link.Link, ipAddress *address.IpAddress) {
-	arpPacket := packet.NewArpP(r.GetMacAddress(l), address.NewMacAddress("FF:FF:FF:FF:FF:FF"), r.getIpAddress(l), ipAddress, r.GetNES().CurrentTime, "request")
+	arpPacket := packet.NewArpP(r.GetMacAddress(l), address.BroadcastMacAddress, r.getIpAddress(l), ipAddress, r.GetNES().CurrentTime, packet.ArpOperationRequest)
 	r.GetNES().LogPacketInfo(arpPacket, "ARP request", r.NodeId())
 	l.EnqueuePacket(arpPacket, r)
 }
@@ -342,7 +342,7 @@ func (r *router) onArpReplyPacketReceived(destinationIP *address.IpAddress, dest
 // requestを受け取ったら、とりあえず自分のルーターに送れって指示を出す
 // 多分これだと複数ルーターが繋がってたときによくないけど、simulatorの都合上、1つのnodeで繋がっているのはルーター1個ってことになってるのかな
 func (r *router) onArpRequestPacketReceived(rp *packet.ArpP, l *link.Link) {
-	arpReplyPacket := packet.NewArpP(r.GetMacAddress(l), rp.GetMacHeader().SourceMac, rp.GetIpHeader().DestIp, rp.GetIpHeader().SourceIp, r.GetNES().CurrentTime, "reply")
+	arpReplyPacket := packet.NewArpP(r.GetMacAddress(l), rp.GetMacHeader().SourceMac, rp.GetIpHeader().DestIp, rp.GetIpHeader().SourceIp, r.GetNES().CurrentTime, packet.ArpOperationReply)
 	r.GetNES().LogPacketInfo(arpReplyPacket, "ARP Reply", r.NodeId())
 	l.EnqueuePacket(arpReplyPacket, r)
 }
@@ -388,7 +388,7 @@ func (r *router) lookupInternalIPByExternal(externalIP string) (string, bool) {
 	return "", false
 }
 
-// IPアドレスが192.168.0.0/16に属しているかを判断する
+// IPアドレスが InternalNetworkIP に属しているかを判断する
 func (r *router) isInternalIp(ipAddress *address.IpAddress) bool {
-	return ipAddress.IsSameNetwork(address.NewIPAddress("192.168.0.0/16"))
+	return ipAddress.IsSameNetwork(address.InternalNetworkIPAddress)
 }

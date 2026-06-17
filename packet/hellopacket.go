@@ -27,7 +27,7 @@ func NewHelloP(s *address.MacAddress, sourceip *address.IpAddress, currentTime f
 	payload := string(p)
 
 	return &HelloP{
-		Packet: *NewPacket(s, address.NewMacAddress("FF:FF:FF:FF:FF:FF"), sourceip, address.NewIPAddress("224.0.0.5/32"), 1, 24, 20, currentTime, payload),
+		Packet: *NewPacket(s, address.BroadcastMacAddress, sourceip, address.OSPFAllSPFRoutersIPAddress, 1, 24, 20, currentTime, payload),
 	}
 }
 

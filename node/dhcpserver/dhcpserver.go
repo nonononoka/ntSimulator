@@ -46,14 +46,14 @@ func (d *dhcpserver) ReceivePacket(p packetI.PacketI, l *link.Link) {
 		return
 	}
 
-	if destMac.String() == "FF:FF:FF:FF:FF:FF" || destMac.String() == d.GetMacAddress().String() {
+	if destMac.String() == address.BroadcastMAC || destMac.String() == d.GetMacAddress().String() {
 		if arpP, ok := p.(*packet.ArpP); ok {
 			ap, err := arpP.ParsePayload()
 			if err != nil {
 				fmt.Printf("arp parse error: %v\n", err)
 				return
 			}
-			if ap.Operation == "request" && ap.DestIp == d.GetIPAddresses()[0].String() {
+			if ap.Operation == packet.ArpOperationRequest && ap.DestIp == d.GetIPAddresses()[0].String() {
 				d.sendArpReply(arpP)
 				return
 			}
@@ -61,7 +61,7 @@ func (d *dhcpserver) ReceivePacket(p packetI.PacketI, l *link.Link) {
 	}
 
 	ipHeader := p.GetIpHeader()
-	if destMac.String() == "FF:FF:FF:FF:FF:FF" && ipHeader.DestIp != nil && ipHeader.DestIp.String() == "255.255.255.255/32" {
+	if destMac.String() == address.BroadcastMAC && ipHeader.DestIp != nil && ipHeader.DestIp.String() == address.BroadcastIP {
 		if dhcpP, ok := p.(*packet.DHCPP); ok {
 			dhcppayload, err := dhcpP.ParsePayload()
 			if err != nil {
@@ -70,9 +70,9 @@ func (d *dhcpserver) ReceivePacket(p packetI.PacketI, l *link.Link) {
 			}
 
 			switch dhcppayload.MessageType {
-			case "DISCOVER":
+			case packet.DHCPMessageTypeDiscover:
 				d.handleDHCPDiscover(dhcpP)
-			case "REQUEST":
+			case packet.DHCPMessageTypeRequest:
 				d.handleDHCPRequest(dhcpP, &dhcppayload)
 			}
 		}
@@ -119,13 +119,13 @@ func (d *dhcpserver) handleDHCPRequest(requestPacket *packet.DHCPP, payload *pac
 }
 
 func (d *dhcpserver) createDHCPOfferPacket(discoverPacket *packet.DHCPP, offeredIP string) *packet.DHCPP {
-	dhcpOfferPacket := packet.NewDHCPPWithOfferedIP(d.GetMacAddress(), discoverPacket.MacHeader.SourceMac, d.GetIPAddresses()[0], discoverPacket.IpHeader.SourceIp, d.GetNES().CurrentTime, "OFFER", offeredIP)
+	dhcpOfferPacket := packet.NewDHCPPWithOfferedIP(d.GetMacAddress(), discoverPacket.MacHeader.SourceMac, d.GetIPAddresses()[0], discoverPacket.IpHeader.SourceIp, d.GetNES().CurrentTime, packet.DHCPMessageTypeOffer, offeredIP)
 	return dhcpOfferPacket
 }
 
 func (d *dhcpserver) createDHCPACKPacket(requestPacket *packet.DHCPP, payload *packet.DHCPPayload) *packet.DHCPP {
 	assignedIP := payload.RequestedIP
-	dhcpACKPacket := packet.NewDHCPPWithAssignedIPAndDNSIP(d.GetMacAddress(), requestPacket.MacHeader.SourceMac, d.GetIPAddresses()[0], requestPacket.IpHeader.SourceIp, d.GetNES().CurrentTime, "ACK", assignedIP, d.dnsServerIp.String())
+	dhcpACKPacket := packet.NewDHCPPWithAssignedIPAndDNSIP(d.GetMacAddress(), requestPacket.MacHeader.SourceMac, d.GetIPAddresses()[0], requestPacket.IpHeader.SourceIp, d.GetNES().CurrentTime, packet.DHCPMessageTypeACK, assignedIP, d.dnsServerIp.String())
 	return dhcpACKPacket
 }
 
@@ -193,7 +193,7 @@ func lastIP(ipNet *net.IPNet) net.IP {
 
 func (d *dhcpserver) sendArpReply(rp packetI.PacketI) {
 	// 送られてきた元のノードに送り返す
-	arpReplyPacket := packet.NewArpP(d.GetMacAddress(), rp.GetMacHeader().SourceMac, d.GetIPAddresses()[0], rp.GetIpHeader().SourceIp, d.GetNES().CurrentTime, "reply")
+	arpReplyPacket := packet.NewArpP(d.GetMacAddress(), rp.GetMacHeader().SourceMac, d.GetIPAddresses()[0], rp.GetIpHeader().SourceIp, d.GetNES().CurrentTime, packet.ArpOperationReply)
 	d.GetNES().LogPacketInfo(arpReplyPacket, "ARP Reply", d.NodeId())
 	d.internalSendPacket(arpReplyPacket)
 }

@@ -22,7 +22,7 @@ func (r *router) sendHelloPacket() {
 	}
 
 	for l, interfaceCIDR := range r.interfaces {
-		helloP := packet.NewHelloP(address.NewMacAddress("00:00:00:00:00:00"), interfaceCIDR, r.GetNES().CurrentTime, r.NodeId(), r.helloInterval, neighbors)
+		helloP := packet.NewHelloP(address.ZeroMacAddress, interfaceCIDR, r.GetNES().CurrentTime, r.NodeId(), r.helloInterval, neighbors)
 		l.EnqueuePacket(helloP, r)
 	}
 	r.GetNES().ScheduleEvent(r.GetNES().CurrentTime+r.helloInterval, func(args ...any) {

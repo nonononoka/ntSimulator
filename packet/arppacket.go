@@ -14,6 +14,11 @@ type arpPayload struct {
 	DestIp    string `json:"destIp"`
 }
 
+const (
+	ArpOperationRequest = "request"
+	ArpOperationReply   = "reply"
+)
+
 type ArpP struct {
 	Packet
 }

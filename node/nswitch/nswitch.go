@@ -102,8 +102,7 @@ func (s *nswitch) GetLinkState(l *link.Link) string {
 
 func (s *nswitch) sendBPDU() {
 	for _, l := range s.GetLinks() {
-		// ブロードキャストアドレス：FF:FF:FF:FF:FF:FF
-		bpdu := packet.NewBPDU(address.NewMacAddress("00:00:00:00:00:00"), address.NewMacAddress("FF:FF:FF:FF:FF:FF"), 64, s.GetNES().CurrentTime, s.rootId, s.NodeId(), s.rootPathCost)
+		bpdu := packet.NewBPDU(address.ZeroMacAddress, address.BroadcastMacAddress, 64, s.GetNES().CurrentTime, s.rootId, s.NodeId(), s.rootPathCost)
 		l.EnqueuePacket(bpdu, s)
 	}
 }

@@ -18,6 +18,13 @@ type DHCPPayload struct {
 	RequestedIP string `json:"requestedIP"`
 }
 
+const (
+	DHCPMessageTypeDiscover = "DISCOVER"
+	DHCPMessageTypeOffer    = "OFFER"
+	DHCPMessageTypeRequest  = "REQUEST"
+	DHCPMessageTypeACK      = "ACK"
+)
+
 func NewDHCPP(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, currentTime float64, messageType string) *DHCPP {
 	p, err := json.Marshal(DHCPPayload{MessageType: messageType})
 	if err != nil {

@@ -16,6 +16,8 @@ type DNSPayload struct {
 	ResolvedIp  string `json:"resolvedIp"`
 }
 
+const DNSQueryTypeA = "A"
+
 func NewDNSP(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, currentTime float64, queryDomain string, queryType string, resolvedIp string) *DNSP {
 	p, err := json.Marshal(DNSPayload{QueryDomain: queryDomain, QueryType: queryType, ResolvedIp: resolvedIp})
 	if err != nil {

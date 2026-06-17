@@ -7,6 +7,30 @@ import (
 	"net/netip"
 )
 
+const BroadcastMAC = "FF:FF:FF:FF:FF:FF"
+
+var BroadcastMacAddress = NewMacAddress(BroadcastMAC)
+
+const BroadcastIP = "255.255.255.255/32"
+
+var BroadcastIPAddress = NewIPAddress(BroadcastIP)
+
+const DHCPSourceIP = "0.0.0.0/32"
+
+var DHCPSourceIPAddress = NewIPAddress(DHCPSourceIP)
+
+const ZeroMAC = "00:00:00:00:00:00"
+
+var ZeroMacAddress = NewMacAddress(ZeroMAC)
+
+const OSPFAllSPFRoutersIP = "224.0.0.5/32"
+
+var OSPFAllSPFRoutersIPAddress = NewIPAddress(OSPFAllSPFRoutersIP)
+
+const InternalNetworkIP = "192.168.0.0/16"
+
+var InternalNetworkIPAddress = NewIPAddress(InternalNetworkIP)
+
 type MacAddress struct {
 	address string
 }

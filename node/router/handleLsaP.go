@@ -20,7 +20,7 @@ func (r *router) sendLsaPacket() {
 
 	for link, ipAddress := range r.interfaces {
 		lsaP := packet.NewLsaP(
-			address.NewMacAddress("00:00:00:00:00:00"), ipAddress, r.GetNES().CurrentTime, r.NodeId(), seqNumber, linkStateInfos)
+			address.ZeroMacAddress, ipAddress, r.GetNES().CurrentTime, r.NodeId(), seqNumber, linkStateInfos)
 		link.EnqueuePacket(lsaP, r)
 	}
 

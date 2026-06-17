@@ -42,14 +42,14 @@ func (d *dnsserver) ReceivePacket(p packetI.PacketI, l *link.Link) {
 		return
 	}
 
-	if destMac.String() == "FF:FF:FF:FF:FF:FF" || destMac.String() == d.GetMacAddress().String() {
+	if destMac.String() == address.BroadcastMAC || destMac.String() == d.GetMacAddress().String() {
 		if arpP, ok := p.(*packet.ArpP); ok {
 			ap, err := arpP.ParsePayload()
 			if err != nil {
 				fmt.Printf("arp parse error: %v\n", err)
 				return
 			}
-			if ap.Operation == "request" && ap.DestIp == d.GetIPAddresses()[0].String() {
+			if ap.Operation == packet.ArpOperationRequest && ap.DestIp == d.GetIPAddresses()[0].String() {
 				d.sendArpReply(arpP)
 				return
 			}
@@ -89,7 +89,7 @@ func (d *dnsserver) handleDNSQuery(dnsP *packet.DNSP) *packet.DNSP {
 		panic(fmt.Sprintf("arp parse error: %v\n", err))
 	}
 	if resolvedIP, ok := d.dnsRecords[dp.QueryDomain]; ok {
-		dnsResponsePacket := packet.NewDNSP(d.MacAddress, dnsP.GetMacHeader().SourceMac, d.IpAddress, dnsP.IpHeader.SourceIp, d.GetNES().CurrentTime, dp.QueryDomain, "A", resolvedIP)
+		dnsResponsePacket := packet.NewDNSP(d.MacAddress, dnsP.GetMacHeader().SourceMac, d.IpAddress, dnsP.IpHeader.SourceIp, d.GetNES().CurrentTime, dp.QueryDomain, packet.DNSQueryTypeA, resolvedIP)
 		return dnsResponsePacket
 	}
 	panic("ドメインに該当するIPアドレスが見つかりません")
@@ -97,7 +97,7 @@ func (d *dnsserver) handleDNSQuery(dnsP *packet.DNSP) *packet.DNSP {
 
 func (d *dnsserver) sendArpReply(rp packetI.PacketI) {
 	// 送られてきた元のノードに送り返す
-	arpReplyPacket := packet.NewArpP(d.GetMacAddress(), rp.GetMacHeader().SourceMac, d.GetIPAddresses()[0], rp.GetIpHeader().SourceIp, d.GetNES().CurrentTime, "reply")
+	arpReplyPacket := packet.NewArpP(d.GetMacAddress(), rp.GetMacHeader().SourceMac, d.GetIPAddresses()[0], rp.GetIpHeader().SourceIp, d.GetNES().CurrentTime, packet.ArpOperationReply)
 	d.GetNES().LogPacketInfo(arpReplyPacket, "ARP Reply", d.NodeId())
 	d.internalSendPacket(arpReplyPacket)
 }

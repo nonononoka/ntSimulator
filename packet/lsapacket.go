@@ -31,7 +31,7 @@ func NewLsaP(s *address.MacAddress, sourceip *address.IpAddress, currentTime flo
 	payload := string(p)
 
 	return &LsaP{
-		Packet: *NewPacket(s, address.NewMacAddress("FF:FF:FF:FF:FF:FF"), sourceip, address.NewIPAddress("224.0.0.5/32"), 1, 24, 100, currentTime, payload),
+		Packet: *NewPacket(s, address.BroadcastMacAddress, sourceip, address.OSPFAllSPFRoutersIPAddress, 1, 24, 100, currentTime, payload),
 	}
 }
 
