@@ -99,6 +99,28 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 		}
 	}
 
+	// DHCP Offer/ACK は割り当て前の 0.0.0.0 宛てで届く
+	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() {
+		if dhcpP, ok := p.(*packet.DHCPP); ok {
+			dhcpPayload, err := dhcpP.ParsePayload()
+			if err != nil {
+				fmt.Printf("dhcp parse error: %v\n", err)
+				return
+			}
+			switch dhcpPayload.MessageType {
+			case "OFFER":
+				n.GetNES().LogPacketInfo(dhcpP, fmt.Sprintf("DHCP offer received: %s", dhcpPayload.OfferedIP), n.NodeId())
+				n.sendDHCPRequest(dhcpPayload.OfferedIP)
+				return
+			case "ACK":
+				n.GetNES().LogPacketInfo(dhcpP, fmt.Sprintf("DHCP ack received: %s", dhcpPayload.AssignedIP), n.NodeId())
+				n.IpAddress = address.NewIPAddress(dhcpPayload.AssignedIP)
+				n.dnsServerIp = dhcpPayload.DnsServerIP
+				return
+			}
+		}
+	}
+
 	// 自分が知りたいIPアドレスだった場合の処理
 	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() && p.GetIpHeader().DestIp.String() == n.IpAddress.String() {
 		// arpリプライが返ってきた場合の処理
@@ -186,7 +208,13 @@ func (n *host) scheduleDHCPPacket() {
 }
 
 func (n *host) sendDHCPDiscover() {
+	dhcpDiscoverPacket := packet.NewDHCPP(n.MacAddress, address.NewMacAddress("FF:FF:FF:FF:FF:FF"), address.NewIPAddress("0.0.0.0/32"), address.NewIPAddress("255.255.255.255/32"), n.GetNES().CurrentTime, "DISCOVER")
+	n.internalSendPacket(dhcpDiscoverPacket)
+}
 
+func (n *host) sendDHCPRequest(requestedIP string) {
+	dhcpRequestPacket := packet.NewDHCPPWithRequestedIP(n.MacAddress, address.NewMacAddress("FF:FF:FF:FF:FF:FF"), address.NewIPAddress("0.0.0.0/32"), address.NewIPAddress("255.255.255.255/32"), n.GetNES().CurrentTime, "REQUEST", requestedIP)
+	n.internalSendPacket(dhcpRequestPacket)
 }
 
 func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, headerSize int, payloadSize int) {

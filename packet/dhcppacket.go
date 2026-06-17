@@ -40,6 +40,17 @@ func NewDHCPPWithOfferedIP(s *address.MacAddress, d *address.MacAddress, sourcei
 	}
 }
 
+func NewDHCPPWithRequestedIP(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, currentTime float64, messageType string, requestedIP string) *DHCPP {
+	p, err := json.Marshal(DHCPPayload{MessageType: messageType, RequestedIP: requestedIP})
+	if err != nil {
+		panic(fmt.Sprintf("Hello payload marshal error: %v", err))
+	}
+	payload := string(p)
+	return &DHCPP{
+		Packet: *NewPacket(s, d, sourceip, destip, 64, 0, 0, currentTime, payload),
+	}
+}
+
 func NewDHCPPWithAssignedIPAndDNSIP(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, currentTime float64, messageType string, assignedIP string, dnsServerIP string) *DHCPP {
 	p, err := json.Marshal(DHCPPayload{MessageType: messageType, AssignedIP: assignedIP, DnsServerIP: dnsServerIP})
 	if err != nil {

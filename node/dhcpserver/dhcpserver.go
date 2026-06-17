@@ -60,7 +60,8 @@ func (d *dhcpserver) ReceivePacket(p packetI.PacketI, l *link.Link) {
 		}
 	}
 
-	if destMac.String() == "FF:FF:FF:FF:FF:FF" && p.GetIpHeader().DestIp.String() == "255.255.255.255/32" {
+	ipHeader := p.GetIpHeader()
+	if destMac.String() == "FF:FF:FF:FF:FF:FF" && ipHeader.DestIp != nil && ipHeader.DestIp.String() == "255.255.255.255/32" {
 		if dhcpP, ok := p.(*packet.DHCPP); ok {
 			dhcppayload, err := dhcpP.ParsePayload()
 			if err != nil {
@@ -91,6 +92,20 @@ func (d *dhcpserver) AddLink(link *link.Link, ip *address.IpAddress) {
 	d.SetLinks(append(d.GetLinks(), link))
 }
 
+// ReserveIP はプール内のIPアドレスを使用済みとして登録する
+func (d *dhcpserver) ReserveIP(ipAddress string) {
+	if _, ok := d.ipPoolUsedMap[ipAddress]; ok {
+		d.ipPoolUsedMap[ipAddress] = true
+	}
+}
+
+// ReserveIPs は複数のIPアドレスを使用済みとして登録する
+func (d *dhcpserver) ReserveIPs(ipAddresses ...string) {
+	for _, ipAddress := range ipAddresses {
+		d.ReserveIP(ipAddress)
+	}
+}
+
 // discoverパケットが来たら利用可能なIPアドレスを割り当ててDHCPOfferPacketを生成して送信
 func (d *dhcpserver) handleDHCPDiscover(discoverPacket *packet.DHCPP) {
 	assignedIP := d.getAvailableIp()
@@ -110,7 +125,7 @@ func (d *dhcpserver) createDHCPOfferPacket(discoverPacket *packet.DHCPP, offered
 
 func (d *dhcpserver) createDHCPACKPacket(requestPacket *packet.DHCPP, payload *packet.DHCPPayload) *packet.DHCPP {
 	assignedIP := payload.RequestedIP
-	dhcpACKPacket := packet.NewDHCPPWithAssignedIPAndDNSIP(d.GetMacAddress(), requestPacket.MacHeader.SourceMac, d.GetIPAddresses()[0], requestPacket.IpHeader.SourceIp, d.GetNES().CurrentTime, "OFFER", assignedIP, d.dnsServerIp.String())
+	dhcpACKPacket := packet.NewDHCPPWithAssignedIPAndDNSIP(d.GetMacAddress(), requestPacket.MacHeader.SourceMac, d.GetIPAddresses()[0], requestPacket.IpHeader.SourceIp, d.GetNES().CurrentTime, "ACK", assignedIP, d.dnsServerIp.String())
 	return dhcpACKPacket
 }
 
@@ -148,7 +163,8 @@ func (d *dhcpserver) initializeIPPool(startCIDR string) {
 		// ネットワークアドレスとブロードキャストアドレスを除外する場合の判定
 		if !currIP.Equal(ipNet.IP) && !currIP.Equal(lastIP(ipNet)) {
 			// 初期状態はすべて「未使用 (false)」
-			d.ipPoolUsedMap[currIP.String()] = false
+			prefixLen, _ := ipNet.Mask.Size()
+			d.ipPoolUsedMap[fmt.Sprintf("%s/%d", currIP.String(), prefixLen)] = false
 		}
 
 		// 次のIPアドレスへ進める
@@ -159,8 +175,9 @@ func (d *dhcpserver) initializeIPPool(startCIDR string) {
 // IPアドレスを1つ進める補助関数
 func inc(ip net.IP) {
 	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
 		if ip[j] > 0 {
-			break
+			return
 		}
 	}
 }
