@@ -27,6 +27,7 @@ type Packet struct {
 
 func NewFragment(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, ttl int, header_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string) *Packet {
 	size := header_size + len(p)
+
 	return &Packet{
 		MacHeader: packetI.MacHeader{
 			SourceMac:      s,

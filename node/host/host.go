@@ -17,8 +17,9 @@ import (
 )
 
 type dataWhenReceiveArpReply struct {
-	data       string
-	headerSize int
+	data            string
+	sourcePort      int
+	destinationPort int
 }
 
 type dataWhenReceiveDNSReply struct {
@@ -82,94 +83,105 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 	if p.ArrivalTime() == -1 {
 		n.GetNES().LogPacketInfo(p, "lost", n.NodeId())
 		return
+	} else if arpP, ok := p.(*packet.ArpP); ok {
+		n.processARPPacket(arpP)
+	} else if dhcpP, ok := p.(*packet.DHCPP); ok {
+		n.processDHCPPacket(dhcpP)
+	} else if dnsP, ok := p.(*packet.DNSP); ok {
+		n.processDNSPacket(dnsP)
+	} else if udpP, ok := p.(*packet.UDPP); ok { // UDPパケットの処理
+		n.processUDPPacket(udpP)
+	} else {
+		n.GetNES().LogPacketInfo(p, "dropped", n.NodeId())
 	}
-	// arppacketを受け取った場合の処理
-	// 自分が知りたいdest ipアドレスだったらreplyを返す
-	if p.GetMacHeader().DestinationMac.String() == address.BroadcastMAC {
-		if arpP, ok := p.(*packet.ArpP); ok {
-			ap, err := arpP.ParsePayload()
-			if err != nil {
-				fmt.Printf("arp parse error: %v\n", err)
-				return
-			}
-			if ap.Operation == packet.ArpOperationRequest && ap.DestIp == n.GetIPAddresses()[0].String() {
-				n.sendArpReply(arpP)
-				return
-			}
-		}
-	}
+}
 
-	// DHCP Offer/ACK は割り当て前の 0.0.0.0 宛てで届く
-	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() {
-		if dhcpP, ok := p.(*packet.DHCPP); ok {
-			dhcpPayload, err := dhcpP.ParsePayload()
-			if err != nil {
-				fmt.Printf("dhcp parse error: %v\n", err)
-				return
-			}
-			switch dhcpPayload.MessageType {
-			case packet.DHCPMessageTypeOffer:
-				n.GetNES().LogPacketInfo(dhcpP, fmt.Sprintf("DHCP offer received: %s", dhcpPayload.OfferedIP), n.NodeId())
-				n.sendDHCPRequest(dhcpPayload.OfferedIP)
-				return
-			case packet.DHCPMessageTypeACK:
-				n.GetNES().LogPacketInfo(dhcpP, fmt.Sprintf("DHCP ack received: %s", dhcpPayload.AssignedIP), n.NodeId())
-				n.IpAddress = address.NewIPAddress(dhcpPayload.AssignedIP)
-				n.dnsServerIp = dhcpPayload.DnsServerIP
-				return
-			}
-		}
-	}
-
-	// 自分が知りたいIPアドレスだった場合の処理
-	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() && p.GetIpHeader().DestIp.String() == n.IpAddress.String() {
-		// arpリプライが返ってきた場合の処理
-		if arpP, ok := p.(*packet.ArpP); ok {
-			ap, err := arpP.ParsePayload()
-			if err != nil {
-				fmt.Printf("arp parse error: %v\n", err)
-				return
-			}
-			if ap.Operation == packet.ArpOperationReply && ap.DestIp == n.GetIPAddresses()[0].String() {
-				n.GetNES().LogPacketInfo(arpP, "ARP Reply received", n.NodeId())
-				sourceIp := address.NewIPAddress(ap.SourceIp)
-				sourceMac := address.NewMacAddress(ap.SourceMac)
-				n.AddToArpTable(sourceIp, sourceMac)
-				n.onArpReplyPacketReceived(ap.SourceIp)
-				return
-			}
-		}
-
-		if dnsP, ok := p.(*packet.DNSP); ok {
-			dp, err := dnsP.ParsePayload()
-			if err != nil {
-				fmt.Printf("dns parse error: %v\n", err)
-				return
-			}
-			n.GetNES().LogPacketInfo(dnsP, "DNS Reply received", n.NodeId())
-			if dp.QueryDomain != "" && dp.ResolvedIp != "" {
-				n.onDNSReplyPacketReceived(dp.QueryDomain, dp.ResolvedIp)
-			}
+func (n *host) processARPPacket(arpP *packet.ArpP) {
+	if arpP.GetMacHeader().DestinationMac.String() == address.BroadcastMacAddress.String() {
+		ap, err := arpP.ParsePayload()
+		if err != nil {
+			fmt.Printf("arp parse error: %v\n", err)
 			return
 		}
-
-		n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
-		p.SetArrived(n.GetNES().CurrentTime)
-		n.arrivedCount++
-		n.receivedBytes += len(p.GetPayload())
-
-		if p.GetIpHeader().FragmentFlags.MoreFragment {
-			n.storeFragment(p)
-		} else if p.GetIpHeader().FragmentOffset > 0 {
-			n.reassembleAndProcessPacket(p)
-		} else {
-			// フラグメント化されていない単体パケット
-			fmt.Printf("payload: %s\n", p.GetPayload())
-			n.GetNES().LogPacketInfo(p, "processed", n.NodeId())
+		if ap.Operation == packet.ArpOperationRequest && ap.DestIp == n.GetIPAddresses()[0].String() {
+			n.sendArpReply(arpP)
+			return
 		}
+	}
+
+	if arpP.GetMacHeader().DestinationMac.String() == n.MacAddress.String() && arpP.GetIpHeader().DestIp.String() == n.IpAddress.String() {
+		ap, err := arpP.ParsePayload()
+		if err != nil {
+			fmt.Printf("arp parse error: %v\n", err)
+			return
+		}
+		if ap.Operation == packet.ArpOperationReply && ap.DestIp == n.GetIPAddresses()[0].String() {
+			n.GetNES().LogPacketInfo(arpP, "ARP Reply received", n.NodeId())
+			sourceIp := address.NewIPAddress(ap.SourceIp)
+			sourceMac := address.NewMacAddress(ap.SourceMac)
+			n.AddToArpTable(sourceIp, sourceMac)
+			n.onArpReplyPacketReceived(ap.SourceIp)
+			return
+		}
+	}
+}
+
+func (n *host) processDHCPPacket(dhcpP *packet.DHCPP) {
+	if dhcpP.GetMacHeader().DestinationMac.String() == n.MacAddress.String() {
+		dhcpPayload, err := dhcpP.ParsePayload()
+		if err != nil {
+			fmt.Printf("dhcp parse error: %v\n", err)
+			return
+		}
+		switch dhcpPayload.MessageType {
+		case packet.DHCPMessageTypeOffer:
+			n.GetNES().LogPacketInfo(dhcpP, fmt.Sprintf("DHCP offer received: %s", dhcpPayload.OfferedIP), n.NodeId())
+			n.sendDHCPRequest(dhcpPayload.OfferedIP)
+			return
+		case packet.DHCPMessageTypeACK:
+			n.GetNES().LogPacketInfo(dhcpP, fmt.Sprintf("DHCP ack received: %s", dhcpPayload.AssignedIP), n.NodeId())
+			n.IpAddress = address.NewIPAddress(dhcpPayload.AssignedIP)
+			n.dnsServerIp = dhcpPayload.DnsServerIP
+			return
+		}
+	}
+}
+
+func (n *host) processDNSPacket(dnsP *packet.DNSP) {
+	if dnsP.GetMacHeader().DestinationMac.String() == n.MacAddress.String() {
+		dp, err := dnsP.ParsePayload()
+		if err != nil {
+			fmt.Printf("dns parse error: %v\n", err)
+			return
+		}
+		n.GetNES().LogPacketInfo(dnsP, "DNS Reply received", n.NodeId())
+		if dp.QueryDomain != "" && dp.ResolvedIp != "" {
+			n.onDNSReplyPacketReceived(dp.QueryDomain, dp.ResolvedIp)
+		}
+		return
+	}
+}
+
+func (n *host) processUDPPacket(p *packet.UDPP) {
+	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() && p.GetIpHeader().DestIp.String() == n.IpAddress.String() {
+		n.processDataPacket(p)
+	}
+}
+
+func (n *host) processDataPacket(p packetI.PacketI) {
+	n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
+	p.SetArrived(n.GetNES().CurrentTime)
+	n.arrivedCount++
+	n.receivedBytes += len(p.GetPayload())
+
+	if p.GetIpHeader().FragmentFlags.MoreFragment {
+		n.storeFragment(p)
+	} else if p.GetIpHeader().FragmentOffset > 0 {
+		n.reassembleAndProcessPacket(p)
 	} else {
-		n.GetNES().LogPacketInfo(p, "received", n.NodeId())
-		// 宛先が自分自身にない場合
+		// フラグメント化されていない単体パケット
+		fmt.Printf("payload: %s\n", p.GetPayload())
+		n.GetNES().LogPacketInfo(p, "processed", n.NodeId())
 	}
 }
 
@@ -217,13 +229,19 @@ func (n *host) sendDHCPRequest(requestedIP string) {
 	n.internalSendPacket(dhcpRequestPacket)
 }
 
-func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, headerSize int, payloadSize int) {
+func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, headerSize int, payloadSize int, protocol string) {
 	sendTime := startTime
+	sourcePort := n.selectRandomPort()
+	destinationPort := n.selectRandomPort()
 	if n.GetNES().CurrentTime > sendTime {
 		sendTime = n.GetNES().CurrentTime
 	}
 	n.GetNES().ScheduleEvent(sendTime, func(args ...any) {
-		n.createPacket(destinationIp, headerSize, payloadSize, strings.Repeat("X", payloadSize))
+		payload := strings.Repeat("X", payloadSize)
+		destinationMac := n.getMacAddressFromIp(destinationIp)
+		p := packet.NewPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, payloadSize, n.GetNES().CurrentTime, payload)
+		n.GetNES().LogPacketInfo(p, "created", n.NodeId())
+		n.sendPacket(destinationIp, payload, protocol, sourcePort, destinationPort)
 	})
 }
 
@@ -232,7 +250,7 @@ func (n *host) attemptToStartTraffic(destinationURL string, startTime float64, h
 	if !ok {
 		n.sendDNSQueryAndSetTraffic(destinationURL, startTime, headerSize, payloadSize)
 	} else {
-		n.setTraffic(address.NewIPAddress(destinationIP), startTime, headerSize, payloadSize)
+		n.setTraffic(address.NewIPAddress(destinationIP), startTime, headerSize, payloadSize, "UDP")
 	}
 }
 
@@ -306,20 +324,34 @@ func (n *host) internalSendPacket(p packetI.PacketI) {
 	}
 }
 
-func (n *host) sendPacket(destinationIp *address.IpAddress, data string, headerSize int) {
-	payloadSize := n.mtu - headerSize
-	totalSize := len(data) // goだとこれはバイト数になる
-	offset := 0
+func (n *host) sendPacket(destinationIp *address.IpAddress, data string, protocol string, sourcePort int, destinationPort int) {
 	destinationMac := n.getMacAddressFromIp(destinationIp) // destinationIPアドレスからmacアドレスをひく
 
 	// 宛先IPアドレスに対応するMacアドレスが未知の場合、arpリクエストを送信して終わり
 	if destinationMac == nil {
 		// ARPリクエストを送信して、パケットを待機リストに追加する
 		n.sendArpRequest(destinationIp)
-		n.waitingForArpReply[destinationIp.String()] = append(n.waitingForArpReply[destinationIp.String()], &dataWhenReceiveArpReply{data: data, headerSize: headerSize})
+		n.waitingForArpReply[destinationIp.String()] = append(n.waitingForArpReply[destinationIp.String()], &dataWhenReceiveArpReply{data: data, sourcePort: sourcePort, destinationPort: destinationPort})
 		return
 	}
+	switch protocol {
+	case "UDP":
+		udpHeaderSize := 8
+		ipHeaderSize := 20
+		headerSize := udpHeaderSize + ipHeaderSize
+		n.sendIPPacketData(headerSize, data, destinationMac, destinationIp, sourcePort, destinationPort, "UDP")
+	case "TCP":
+		tcpHeaderSize := 20
+		ipHeaderSize := 20
+		headerSize := tcpHeaderSize + ipHeaderSize
+		n.sendIPPacketData(headerSize, data, destinationMac, destinationIp, sourcePort, destinationPort, "UDP")
+	}
+}
 
+func (n *host) sendIPPacketData(headerSize int, data string, destinationMac *address.MacAddress, destinationIp *address.IpAddress, sourcePort int, destinationPort int, protocol string) {
+	payloadSize := n.mtu - headerSize
+	totalSize := len(data) // goだとこれはバイト数になる
+	offset := 0
 	originalDataId := uuid.New().String()
 
 	for offset < totalSize {
@@ -331,10 +363,13 @@ func (n *host) sendPacket(destinationIp *address.IpAddress, data string, headerS
 		}
 		fragmentData := data[offset:end]
 		fragmentOffset := offset
+		var p packetI.PacketI
+		if protocol == "UDP" {
+			// udp headerに送信元ポートと宛先ポート番号をつける
+			p = packet.NewUDPPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, n.GetNES().CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData, sourcePort, destinationPort)
+		}
 
-		packet := packet.NewFragment(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, n.GetNES().CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData)
-
-		n.internalSendPacket(packet) // 細かくfragmentにしたpacketを送信する
+		n.internalSendPacket(p) // 細かくfragmentにしたpacketを送信する
 		offset += payloadSize
 	}
 }
@@ -344,13 +379,6 @@ func (n *host) sendArpRequest(ipAddress *address.IpAddress) {
 	arpPacket := packet.NewArpP(n.MacAddress, address.BroadcastMacAddress, n.IpAddress, ipAddress, n.GetNES().CurrentTime, packet.ArpOperationRequest)
 	n.GetNES().LogPacketInfo(arpPacket, "ARP request", n.NodeId())
 	n.internalSendPacket(arpPacket)
-}
-
-func (n *host) createPacket(destinationIp *address.IpAddress, headerSize int, payloadSize int, payload string) {
-	destinationMac := n.getMacAddressFromIp(destinationIp)
-	p := packet.NewPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, payloadSize, n.GetNES().CurrentTime, payload)
-	n.GetNES().LogPacketInfo(p, "created", n.NodeId())
-	n.sendPacket(destinationIp, payload, headerSize)
 }
 
 func (n *host) AddToArpTable(ipAddress *address.IpAddress, macAddress *address.MacAddress) {
@@ -392,7 +420,7 @@ func (n *host) onDNSReplyPacketReceived(query string, ipAddress string) {
 	if _, ok := n.waitingForDNSReply[query]; ok {
 		destinationIP := address.NewIPAddress(ipAddress)
 		for _, v := range n.waitingForDNSReply[query] {
-			n.setTraffic(destinationIP, v.startTime, v.headerSize, v.payloadSize)
+			n.setTraffic(destinationIP, v.startTime, v.headerSize, v.payloadSize, "UDP")
 		}
 		n.waitingForDNSReply[query] = []*dataWhenReceiveDNSReply{}
 	}
@@ -407,7 +435,7 @@ func (n *host) onArpReplyPacketReceived(ipAddress string) {
 	if _, ok := n.waitingForArpReply[ipAddress]; ok {
 		destinationIP := address.NewIPAddress(ipAddress)
 		for _, v := range n.waitingForArpReply[ipAddress] {
-			n.sendPacket(destinationIP, v.data, v.headerSize)
+			n.sendPacket(destinationIP, v.data, "UDP", v.sourcePort, v.destinationPort)
 		}
 		n.waitingForArpReply[ipAddress] = []*dataWhenReceiveArpReply{}
 	}
@@ -429,4 +457,8 @@ func (n *host) resolveDestinationIp(destionaionUrl string) (string, bool) {
 		return destionaionUrl, true
 	}
 	return "", false
+}
+
+func (n *host) selectRandomPort() int {
+	return rand.N(49151-1024+1) + 1024
 }

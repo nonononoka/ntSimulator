@@ -20,6 +20,11 @@ type IpHeader struct {
 	FragmentOffset int
 }
 
+type UDPHeader struct {
+	SourcePort      int
+	DestinationPort int
+}
+
 type PacketI interface {
 	SetArrived(time float64)
 	ArrivalTime() float64
