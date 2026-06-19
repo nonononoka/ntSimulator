@@ -14,10 +14,10 @@ import (
 func main() {
 	nes := nteventsched.NewNtEventSched(true, true)
 	n1 := host.NewHost(1, "192.168.1.0/24", 1500, nes)
-	n2 := host.NewHost(2, "10.0.0.2/24", 1500, nes)
+	n2 := host.NewHost(2, "192.168.2.1/24", 1500, nes)
 	// n3 := host.NewHost(3, "192.168.1.3/24", 1500, nes)
 	// n4 := host.NewHost(4, "192.168.1.4/24", 1500, nes)
-	r1 := router.NewRouterNATEnabled(3, []string{"192.168.1.254/24", "10.0.0.1/24"}, nes, address.NewIPAddress("10.0.0.1/24"))
+	r1 := router.NewRouterNATEnabled(3, []string{"192.168.1.254/24", "192.168.2.254/24"}, nes, address.NewIPAddress("192.168.2.254/24"))
 	dns1 := dnsserver.NewDNSServer(nes, 4, "192.168.1.200/24")
 	// r2 := router.NewRouter(4, []string{"192.168.2.254/24", "10.1.1.2/24"}, nes)
 	// r3 := router.NewRouter(4, []string{"10.2.3.3/24", "10.3.4.3/24"}, nes)
@@ -44,9 +44,9 @@ func main() {
 	l4.PrintLink()
 	l5.PrintLink()
 
-	dns1.AddDNSRecord("www.example.com", "10.0.0.2/24")
+	dns1.AddDNSRecord("www.example.com", "192.168.2.1/24")
 
-	n1.StartTraffic("www.example.com", 1.0, 50, 10000)
+	n1.StartTraffic("www.example.com", 1.0, 50, 10000, "TCP")
 
 	// n2.SetTraffic("00:1A:2B:3C:4D:5E", 8000, 40.0, 10.0, 40.0, 85.0, 1.0)
 	// linkを繋ぐ前

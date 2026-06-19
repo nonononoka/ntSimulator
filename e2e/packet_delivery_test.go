@@ -32,7 +32,7 @@ func TestPacketDelivery(t *testing.T) {
 	r2.AddToArpTable(n2.IpAddress, n2.MacAddress)
 
 	// startTime=1.0 でパケット送信，payload=10000byte → MTU(1500)-header(40)=1460byte/fragment → 7フラグメント
-	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000)
+	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000, "UDP")
 
 	nes.RunUntil(10.0)
 

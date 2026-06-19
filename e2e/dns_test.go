@@ -37,7 +37,7 @@ func TestMainTopologyPacketDelivery(t *testing.T) {
 	)
 
 	dns1.AddDNSRecord(domain, "192.168.2.1/24")
-	n1.StartTraffic(domain, startTime, headerSize, payloadSize)
+	n1.StartTraffic(domain, startTime, headerSize, payloadSize, "UDP")
 
 	nes.RunUntil(50.0)
 

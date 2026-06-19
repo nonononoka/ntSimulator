@@ -23,7 +23,7 @@ func TestSwitchDelivery(t *testing.T) {
 	n1.AddToArpTable(n2.IpAddress, n2.MacAddress)
 
 	// headerSize=20, payloadSize=1000 → 1020 byte < MTU(1500) なのでフラグメントなし
-	n1.StartTraffic(n2.IpAddress.String(), 1.0, 20, 1000)
+	n1.StartTraffic(n2.IpAddress.String(), 1.0, 20, 1000, "UDP")
 
 	nes.RunUntil(5.0)
 

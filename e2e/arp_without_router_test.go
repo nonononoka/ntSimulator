@@ -25,10 +25,10 @@ func TestFourHostSwitchRing(t *testing.T) {
 	link.NewLink(n3, s1, 200000, 0.01, 0.0, nes)
 	link.NewLink(n4, s1, 200000, 0.01, 0.0, nes)
 
-	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000)
-	n2.StartTraffic(n3.IpAddress.String(), 1.0, 40, 10000)
-	n3.StartTraffic(n4.IpAddress.String(), 1.0, 40, 10000)
-	n4.StartTraffic(n1.IpAddress.String(), 1.0, 40, 10000)
+	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000, "UDP")
+	n2.StartTraffic(n3.IpAddress.String(), 1.0, 40, 10000, "UDP")
+	n3.StartTraffic(n4.IpAddress.String(), 1.0, 40, 10000, "UDP")
+	n4.StartTraffic(n1.IpAddress.String(), 1.0, 40, 10000, "UDP")
 
 	nes.RunUntil(50.0)
 

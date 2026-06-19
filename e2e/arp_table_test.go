@@ -36,7 +36,7 @@ func TestArpTableSetting(t *testing.T) {
 	r2.AddToArpTable(n1.IpAddress, r1.GetMacAddress(l3))
 	r2.AddToArpTable(n2.IpAddress, n2.MacAddress)
 
-	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000)
+	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000, "UDP")
 	nes.RunUntil(50.0)
 
 	const wantFragments = 7 // ceil(10000 / (1500-40))

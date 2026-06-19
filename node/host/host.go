@@ -10,6 +10,7 @@ import (
 	"nt-simulator/nteventsched"
 	"nt-simulator/packet"
 	"nt-simulator/packet/packetI"
+	"slices"
 	"sort"
 	"strings"
 
@@ -20,12 +21,26 @@ type dataWhenReceiveArpReply struct {
 	data            string
 	sourcePort      int
 	destinationPort int
+	protocol        string
 }
 
 type dataWhenReceiveDNSReply struct {
 	startTime   float64
 	headerSize  int
 	payloadSize int
+	protocol    string
+}
+
+type TCPConnectionKey struct {
+	destinationIP   string
+	destinationPort int
+}
+
+type pendingTCPData struct {
+	destinationIp   string
+	data            string
+	sourcePort      int
+	destinationPort int
 }
 
 // Nodeの構造体
@@ -42,6 +57,8 @@ type host struct {
 	waitingForDNSReply map[string][]*dataWhenReceiveDNSReply
 	urlToIpMapping     map[string]string // urlとipアドレスのmapping
 	dnsServerIp        string
+	tcpConnections     map[TCPConnectionKey]packet.TCPConnectionState
+	pendingTCPData     map[TCPConnectionKey]pendingTCPData
 }
 
 func (n *host) ArrivedCount() int  { return n.arrivedCount }
@@ -49,7 +66,7 @@ func (n *host) ReceivedBytes() int { return n.receivedBytes }
 
 func NewHost(nodeId int, ipAddress string, mtu int, nes *nteventsched.NtEventSched) *host {
 	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packetI.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(address.GenerateRandomMAC()),
-		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[string]*address.MacAddress), waitingForArpReply: make(map[string][]*dataWhenReceiveArpReply), waitingForDNSReply: make(map[string][]*dataWhenReceiveDNSReply), urlToIpMapping: make(map[string]string), dnsServerIp: "192.168.1.200/24"}
+		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[string]*address.MacAddress), waitingForArpReply: make(map[string][]*dataWhenReceiveArpReply), waitingForDNSReply: make(map[string][]*dataWhenReceiveDNSReply), urlToIpMapping: make(map[string]string), dnsServerIp: "192.168.1.200/24", tcpConnections: make(map[TCPConnectionKey]packet.TCPConnectionState), pendingTCPData: make(map[TCPConnectionKey]pendingTCPData)}
 	nes.AddNode(n)
 	n.scheduleDHCPPacket()
 	return n
@@ -91,6 +108,8 @@ func (n *host) ReceivePacket(p packetI.PacketI, l *link.Link) {
 		n.processDNSPacket(dnsP)
 	} else if udpP, ok := p.(*packet.UDPP); ok { // UDPパケットの処理
 		n.processUDPPacket(udpP)
+	} else if tcpP, ok := p.(*packet.TCPP); ok { // TCPパケットの処理
+		n.processTCPPacket(tcpP)
 	} else {
 		n.GetNES().LogPacketInfo(p, "dropped", n.NodeId())
 	}
@@ -168,6 +187,50 @@ func (n *host) processUDPPacket(p *packet.UDPP) {
 	}
 }
 
+// TCPパケットを受け取ったときの処理
+func (n *host) processTCPPacket(p *packet.TCPP) {
+	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() {
+		if p.GetIpHeader().DestIp.String() == n.IpAddress.String() {
+			flags := strings.Split(p.TCPHeader.Flags, ",")
+			if slices.Contains(flags, "SYN") && !slices.Contains(flags, "ACK") {
+				// SYNパケットを受信した場合、SYN-ACKを送信
+				n.sendTCPSYNACK(p)
+				n.logTCPControlPacketProcessed(p)
+			} else if slices.Contains(flags, "SYN") && slices.Contains(flags, "ACK") {
+				// SYN-ACKパケットを受信した場合、ACKを送信
+				n.sendTCPACK(p)
+				n.logTCPControlPacketProcessed(p)
+			} else if slices.Contains(flags, "ACK") {
+				// ACKパケットを受信した場合、接続が確立されたとみなす
+				n.establishTCPConnection(p)
+				n.logTCPControlPacketProcessed(p)
+			} else if slices.Contains(flags, "FIN") {
+				// FINパケットを受信した場合、接続を修了
+				n.terminateTCPConnection(p)
+			} else {
+				n.processDataPacket(p)
+			}
+		}
+	}
+}
+
+func (n *host) logTCPControlPacketProcessed(p *packet.TCPP) {
+	n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
+	p.SetArrived(n.GetNES().CurrentTime)
+	n.GetNES().LogPacketInfo(p, "processed", n.NodeId())
+}
+
+func (n *host) sendTCPSYNACK(p *packet.TCPP) {
+	synAckPacketFlags := "SYN,ACK"
+	n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, "", p.TCPHeader.DestinationPort, p.TCPHeader.SourcePort, synAckPacketFlags)
+}
+
+func (n *host) sendTCPACK(p *packet.TCPP) {
+	ackPacketFlags := "ACK"
+	n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, "", p.TCPHeader.DestinationPort, p.TCPHeader.SourcePort, ackPacketFlags)
+	n.establishTCPConnection(p)
+}
+
 func (n *host) processDataPacket(p packetI.PacketI) {
 	n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
 	p.SetArrived(n.GetNES().CurrentTime)
@@ -206,9 +269,9 @@ func (n *host) PrintArpTable() {
 	fmt.Println("---------------------------------------")
 }
 
-func (n *host) StartTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int) {
+func (n *host) StartTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int, protocol string) {
 	n.GetNES().ScheduleEvent(startTime, func(args ...any) {
-		n.attemptToStartTraffic(destinationURL, startTime, headerSize, payloadSize)
+		n.attemptToStartTraffic(destinationURL, startTime, headerSize, payloadSize, protocol)
 	})
 }
 
@@ -241,29 +304,31 @@ func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, h
 		destinationMac := n.getMacAddressFromIp(destinationIp)
 		p := packet.NewPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, payloadSize, n.GetNES().CurrentTime, payload)
 		n.GetNES().LogPacketInfo(p, "created", n.NodeId())
-		n.sendPacket(destinationIp, payload, protocol, sourcePort, destinationPort)
+		switch protocol {
+		case "UDP":
+			n.sendUDPPacket(destinationIp, payload, sourcePort, destinationPort)
+		case "TCP":
+			n.startTCPConnectionAndSendPacket(destinationIp, payload, sourcePort, destinationPort, "")
+		}
 	})
 }
 
-func (n *host) attemptToStartTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int) {
+func (n *host) attemptToStartTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int, protocol string) {
 	destinationIP, ok := n.resolveDestinationIp(destinationURL)
 	if !ok {
-		n.sendDNSQueryAndSetTraffic(destinationURL, startTime, headerSize, payloadSize)
+		n.sendDNSQueryAndSetTraffic(destinationURL, startTime, headerSize, payloadSize, protocol)
 	} else {
-		n.setTraffic(address.NewIPAddress(destinationIP), startTime, headerSize, payloadSize, "UDP")
+		n.setTraffic(address.NewIPAddress(destinationIP), startTime, headerSize, payloadSize, protocol)
 	}
 }
 
-func (n *host) sendDNSQueryAndSetTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int) {
+func (n *host) sendDNSQueryAndSetTraffic(destinationURL string, startTime float64, headerSize int, payloadSize int, protocol string) {
 	n.waitingForDNSReply[destinationURL] = append(n.waitingForDNSReply[destinationURL], &dataWhenReceiveDNSReply{
 		startTime:   startTime,
 		headerSize:  headerSize,
 		payloadSize: payloadSize,
+		protocol:    protocol,
 	})
-	n.sendDNSQuery(destinationURL)
-}
-
-func (n *host) sendDNSQuery(destinationURL string) {
 	p := packet.NewDNSP(n.MacAddress, address.BroadcastMacAddress, n.IpAddress, address.NewIPAddress(n.dnsServerIp), n.GetNES().CurrentTime, destinationURL, packet.DNSQueryTypeA, "")
 	n.GetNES().LogPacketInfo(p, "DNS Query", n.NodeId())
 	n.internalSendPacket(p)
@@ -324,31 +389,19 @@ func (n *host) internalSendPacket(p packetI.PacketI) {
 	}
 }
 
-func (n *host) sendPacket(destinationIp *address.IpAddress, data string, protocol string, sourcePort int, destinationPort int) {
+func (n *host) sendUDPPacket(destinationIp *address.IpAddress, data string, sourcePort int, destinationPort int) {
 	destinationMac := n.getMacAddressFromIp(destinationIp) // destinationIPアドレスからmacアドレスをひく
 
 	// 宛先IPアドレスに対応するMacアドレスが未知の場合、arpリクエストを送信して終わり
 	if destinationMac == nil {
 		// ARPリクエストを送信して、パケットを待機リストに追加する
 		n.sendArpRequest(destinationIp)
-		n.waitingForArpReply[destinationIp.String()] = append(n.waitingForArpReply[destinationIp.String()], &dataWhenReceiveArpReply{data: data, sourcePort: sourcePort, destinationPort: destinationPort})
+		n.waitingForArpReply[destinationIp.String()] = append(n.waitingForArpReply[destinationIp.String()], &dataWhenReceiveArpReply{data: data, sourcePort: sourcePort, destinationPort: destinationPort, protocol: "UDP"})
 		return
 	}
-	switch protocol {
-	case "UDP":
-		udpHeaderSize := 8
-		ipHeaderSize := 20
-		headerSize := udpHeaderSize + ipHeaderSize
-		n.sendIPPacketData(headerSize, data, destinationMac, destinationIp, sourcePort, destinationPort, "UDP")
-	case "TCP":
-		tcpHeaderSize := 20
-		ipHeaderSize := 20
-		headerSize := tcpHeaderSize + ipHeaderSize
-		n.sendIPPacketData(headerSize, data, destinationMac, destinationIp, sourcePort, destinationPort, "UDP")
-	}
-}
-
-func (n *host) sendIPPacketData(headerSize int, data string, destinationMac *address.MacAddress, destinationIp *address.IpAddress, sourcePort int, destinationPort int, protocol string) {
+	udpHeaderSize := 8
+	ipHeaderSize := 20
+	headerSize := udpHeaderSize + ipHeaderSize
 	payloadSize := n.mtu - headerSize
 	totalSize := len(data) // goだとこれはバイト数になる
 	offset := 0
@@ -363,11 +416,59 @@ func (n *host) sendIPPacketData(headerSize int, data string, destinationMac *add
 		}
 		fragmentData := data[offset:end]
 		fragmentOffset := offset
-		var p packetI.PacketI
-		if protocol == "UDP" {
-			// udp headerに送信元ポートと宛先ポート番号をつける
-			p = packet.NewUDPPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, n.GetNES().CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData, sourcePort, destinationPort)
+		p := packet.NewUDPPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, n.GetNES().CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData, sourcePort, destinationPort)
+
+		n.internalSendPacket(p) // 細かくfragmentにしたpacketを送信する
+		offset += payloadSize
+	}
+}
+
+func (n *host) startTCPConnectionAndSendPacket(destinationIp *address.IpAddress, data string, sourcePort int, destinationPort int, flags string) {
+	destinationMac := n.getMacAddressFromIp(destinationIp) // destinationIPアドレスからmacアドレスをひく
+
+	// 宛先IPアドレスに対応するMacアドレスが未知の場合、arpリクエストを送信して終わり
+	if destinationMac == nil {
+		// ARPリクエストを送信して、パケットを待機リストに追加する
+		n.sendArpRequest(destinationIp)
+		n.waitingForArpReply[destinationIp.String()] = append(n.waitingForArpReply[destinationIp.String()], &dataWhenReceiveArpReply{data: data, sourcePort: sourcePort, destinationPort: destinationPort, protocol: "TCP"})
+		return
+	}
+	if !n.isTCPConnectionEstablished(destinationIp, destinationPort) {
+		connectionKey := TCPConnectionKey{destinationIP: destinationIp.String(), destinationPort: destinationPort}
+		n.pendingTCPData[connectionKey] = pendingTCPData{destinationIp: destinationIp.String(), destinationPort: destinationPort, sourcePort: sourcePort, data: data}
+		// 接続が未確立なので、ハンドシェイクを開始。これは実際にはaccept関数がやってくれる
+		n.initiateTCPHandshake(destinationIp, destinationMac, sourcePort, destinationPort)
+	}else{
+	n.sendTCPPacket(destinationIp, destinationMac, data, sourcePort, destinationPort, flags)
+	}
+}
+
+func (n *host) sendTCPPacket(destinationIp *address.IpAddress, destinationMac *address.MacAddress, data string, sourcePort int, destinationPort int, flags string) {
+	tcpHeaderSize := 20
+	ipHeaderSize := 20
+	headerSize := tcpHeaderSize + ipHeaderSize
+	payloadSize := n.mtu - headerSize
+	totalSize := len(data) // goだとこれはバイト数になる
+	offset := 0
+	originalDataId := uuid.New().String()
+
+	// SYN/ACK などペイロードなしの制御パケットも1回は送信する
+	if totalSize == 0 {
+		p := packet.NewTCPPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, n.GetNES().CurrentTime, originalDataId, false, 0, "", sourcePort, destinationPort, 0, 0, flags)
+		n.internalSendPacket(p)
+		return
+	}
+
+	for offset < totalSize {
+		moreFragment := (offset + payloadSize) < totalSize
+
+		end := offset + payloadSize
+		if end > totalSize {
+			end = totalSize
 		}
+		fragmentData := data[offset:end]
+		fragmentOffset := offset
+		p := packet.NewTCPPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, n.GetNES().CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData, sourcePort, destinationPort, 0, 0, flags)
 
 		n.internalSendPacket(p) // 細かくfragmentにしたpacketを送信する
 		offset += payloadSize
@@ -420,7 +521,7 @@ func (n *host) onDNSReplyPacketReceived(query string, ipAddress string) {
 	if _, ok := n.waitingForDNSReply[query]; ok {
 		destinationIP := address.NewIPAddress(ipAddress)
 		for _, v := range n.waitingForDNSReply[query] {
-			n.setTraffic(destinationIP, v.startTime, v.headerSize, v.payloadSize, "UDP")
+			n.setTraffic(destinationIP, v.startTime, v.headerSize, v.payloadSize, v.protocol)
 		}
 		n.waitingForDNSReply[query] = []*dataWhenReceiveDNSReply{}
 	}
@@ -435,7 +536,12 @@ func (n *host) onArpReplyPacketReceived(ipAddress string) {
 	if _, ok := n.waitingForArpReply[ipAddress]; ok {
 		destinationIP := address.NewIPAddress(ipAddress)
 		for _, v := range n.waitingForArpReply[ipAddress] {
-			n.sendPacket(destinationIP, v.data, "UDP", v.sourcePort, v.destinationPort)
+			switch v.protocol {
+			case "UDP":
+				n.sendUDPPacket(destinationIP, v.data, v.sourcePort, v.destinationPort)
+			case "TCP":
+				n.startTCPConnectionAndSendPacket(destinationIP, v.data, v.sourcePort, v.destinationPort, "")
+			}
 		}
 		n.waitingForArpReply[ipAddress] = []*dataWhenReceiveArpReply{}
 	}
@@ -461,4 +567,51 @@ func (n *host) resolveDestinationIp(destionaionUrl string) (string, bool) {
 
 func (n *host) selectRandomPort() int {
 	return rand.N(49151-1024+1) + 1024
+}
+
+func (n *host) isTCPConnectionEstablished(destinationIP *address.IpAddress, destinationPort int) bool {
+	if status, ok := n.tcpConnections[TCPConnectionKey{destinationIP: destinationIP.String(), destinationPort: destinationPort}]; ok {
+		if status == packet.TCPConnectionStateEstablished {
+			return true
+		} else {
+			return false
+		}
+	} else {
+		return false
+	}
+}
+
+// TCP接続を確立する。接続が確立されたら、保存しておいたデータを送信する
+func (n *host) establishTCPConnection(p *packet.TCPP) {
+	tcpConnectionKey := TCPConnectionKey{destinationIP: p.GetIpHeader().SourceIp.String(), destinationPort: p.TCPHeader.SourcePort}
+	if n.isTCPConnectionEstablished(p.GetIpHeader().SourceIp, p.TCPHeader.SourcePort) {
+		return
+	}
+
+	n.updateTCPConnectionState(p.GetIpHeader().SourceIp.String(), p.TCPHeader.SourcePort, packet.TCPConnectionStateEstablished)
+	// 保存しておいたデータがあれば送信する
+	if pendingData, ok := n.pendingTCPData[tcpConnectionKey]; ok {
+		delete(n.pendingTCPData, tcpConnectionKey)
+		n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, pendingData.data, pendingData.sourcePort, pendingData.destinationPort, "")
+	}
+}
+
+func (n *host) initiateTCPHandshake(destinationIp *address.IpAddress, destinationMac *address.MacAddress, sourcePort int, destinationPort int) {
+	// establishedじゃなかったらSYNパケットを送信
+	if !n.isTCPConnectionEstablished(destinationIp, destinationPort) {
+		// 接続状態をSYN SENTに更新
+		n.updateTCPConnectionState(destinationIp.String(), destinationPort, packet.TCPConnectionStateSynSent)
+		// flagsを"SYN"にして送信
+		n.sendTCPPacket(destinationIp, destinationMac, "", sourcePort, destinationPort, "SYN")
+	}
+}
+
+// 指定された宛先に対するTCP接続の状態を更新
+func (n *host) updateTCPConnectionState(destinationIP string, destinatioPort int, newState packet.TCPConnectionState) {
+	n.tcpConnections[TCPConnectionKey{destinationIP: destinationIP, destinationPort: destinatioPort}] = newState
+}
+
+func (n *host) terminateTCPConnection(p *packet.TCPP) {
+	tcpConnectionKey := TCPConnectionKey{destinationIP: p.GetIpHeader().SourceIp.String(), destinationPort: p.TCPHeader.SourcePort}
+	delete(n.tcpConnections, tcpConnectionKey)
 }

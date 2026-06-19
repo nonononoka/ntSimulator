@@ -17,7 +17,8 @@ import (
 // DHCP による IP 割り当てと DNS 解決後のパケット配送を検証する。
 //
 // トポロジ: n1 -- s1 -- r1 -- n2
-//           s1 -- dns1, dhcp1
+//
+//	s1 -- dns1, dhcp1
 func TestMainTopologyWithDHCP(t *testing.T) {
 	nes := nteventsched.NewNtEventSched(false, false)
 
@@ -48,7 +49,7 @@ func TestMainTopologyWithDHCP(t *testing.T) {
 	)
 
 	dns1.AddDNSRecord(domain, "192.168.2.1/24")
-	n1.StartTraffic(domain, startTime, headerSize, payloadSize)
+	n1.StartTraffic(domain, startTime, headerSize, payloadSize, "UDP")
 
 	nes.RunUntil(50.0)
 

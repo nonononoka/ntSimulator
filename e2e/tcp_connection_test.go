@@ -13,18 +13,18 @@ import (
 	"nt-simulator/nteventsched"
 )
 
-// TestMainTopologyWithNAT は main.go と同じ設定で
-// DHCP・NAT 経由の DNS 解決後のパケット配送を検証する。
+// TestMainTopologyTCPConnection は main.go と同じ設定で
+// DHCP・DNS 解決後に n1 から n2 へ TCP パケットが届くことを検証する。
 //
 // トポロジ: n1 -- s1 -- r1(NAT) -- n2
 //
 //	s1 -- dns1, dhcp1
-func TestMainTopologyWithNAT(t *testing.T) {
+func TestMainTopologyTCPConnection(t *testing.T) {
 	nes := nteventsched.NewNtEventSched(false, false)
 
 	n1 := host.NewHost(1, "192.168.1.0/24", 1500, nes)
-	n2 := host.NewHost(2, "10.0.0.2/24", 1500, nes)
-	r1 := router.NewRouterNATEnabled(3, []string{"192.168.1.254/24", "10.0.0.1/24"}, nes, address.NewIPAddress("10.0.0.1/24"))
+	n2 := host.NewHost(2, "192.168.2.1/24", 1500, nes)
+	r1 := router.NewRouterNATEnabled(3, []string{"192.168.1.254/24", "192.168.2.254/24"}, nes, address.NewIPAddress("192.168.2.254/24"))
 	dns1 := dnsserver.NewDNSServer(nes, 4, "192.168.1.200/24")
 	s1 := nswitch.NewSwitch(nes, 5, "192.168.1.240/24")
 	dhcp1 := dhcpserver.NewDHCPServer(nes, 6, "192.168.1.250/24", "192.168.1.200/24", "192.168.1.0/24")
@@ -48,8 +48,8 @@ func TestMainTopologyWithNAT(t *testing.T) {
 		payloadSize = 10000
 	)
 
-	dns1.AddDNSRecord(domain, "10.0.0.2/24")
-	n1.StartTraffic(domain, startTime, headerSize, payloadSize, "UDP")
+	dns1.AddDNSRecord(domain, "192.168.2.1/24")
+	n1.StartTraffic(domain, startTime, headerSize, payloadSize, "TCP")
 
 	nes.RunUntil(50.0)
 
@@ -73,12 +73,7 @@ func TestMainTopologyWithNAT(t *testing.T) {
 		t.Errorf("n1 IP = %s, want address in 192.168.1.0/24", assignedIP)
 	}
 
-	externalNetwork := address.NewIPAddress("10.0.0.0/24")
-	if assignedIP.IsSameNetwork(externalNetwork) {
-		t.Errorf("n1 IP = %s, should remain on internal network after NAT", assignedIP)
-	}
-
-	const wantFragments = 7 // ceil(10000 / (1500-50))
+	const wantFragments = 7 // ceil(10000 / (1500-20-20))
 	if n2.ArrivedCount() != wantFragments {
 		t.Errorf("n2 arrived fragments = %d, want %d", n2.ArrivedCount(), wantFragments)
 	}

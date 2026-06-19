@@ -28,8 +28,8 @@ func TestMainTopology(t *testing.T) {
 	link.NewLink(r2, s2, 100000, 0.01, 0.0, nes)
 	link.NewLink(s2, n2, 200000, 0.01, 0.0, nes)
 
-	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000)
-	n2.StartTraffic(n1.IpAddress.String(), 1.0, 40, 10000)
+	n1.StartTraffic(n2.IpAddress.String(), 1.0, 40, 10000, "UDP")
+	n2.StartTraffic(n1.IpAddress.String(), 1.0, 40, 10000, "UDP")
 
 	nes.RunUntil(50.0)
 

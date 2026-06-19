@@ -7,9 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type UDPHeader struct {
+	SourcePort      int
+	DestinationPort int
+}
+
 type UDPP struct {
 	Packet
-	packetI.UDPHeader
+	UDPHeader
 }
 
 func NewUDPPacket(s *address.MacAddress, d *address.MacAddress, sourceip *address.IpAddress, destip *address.IpAddress, ttl int, header_size int, currentTime float64, originalDataId string, morefragment bool, offset int, p string, sourcePort int, destinationPort int) *UDPP {
@@ -33,7 +38,7 @@ func NewUDPPacket(s *address.MacAddress, d *address.MacAddress, sourceip *addres
 			Id:           uuid.New().String(),
 			creationTime: currentTime,
 		},
-		UDPHeader: packetI.UDPHeader{
+		UDPHeader: UDPHeader{
 			SourcePort:      sourcePort,
 			DestinationPort: destinationPort,
 		},
