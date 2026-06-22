@@ -10,6 +10,8 @@ import (
 type TCPConnectionState string
 
 const (
+	TCPConnectionStateSynReceived TCPConnectionState = "SYN_RECEIVED"
+	TCPConnectionStateClosed      TCPConnectionState = "CLOSED"
 	TCPConnectionStateSynSent     TCPConnectionState = "SYN_SENT"
 	TCPConnectionStateEstablished TCPConnectionState = "ESTABLISHED"
 )

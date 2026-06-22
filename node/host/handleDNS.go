@@ -6,6 +6,13 @@ import (
 	"nt-simulator/packet"
 )
 
+type dataWhenReceiveDNSReply struct {
+	startTime   float64
+	headerSize  int
+	payloadSize int
+	protocol    string
+}
+
 func (n *host) processDNSPacket(dnsP *packet.DNSP) {
 	if dnsP.GetMacHeader().DestinationMac.String() == n.MacAddress.String() {
 		dp, err := dnsP.ParsePayload()
@@ -28,6 +35,7 @@ func (n *host) sendDNSQueryAndSetTraffic(destinationURL string, startTime float6
 		payloadSize: payloadSize,
 		protocol:    protocol,
 	})
+
 	p := packet.NewDNSP(n.MacAddress, address.BroadcastMacAddress, n.IpAddress, address.NewIPAddress(n.dnsServerIp), n.GetNES().CurrentTime, destinationURL, packet.DNSQueryTypeA, "")
 	n.GetNES().LogPacketInfo(p, "DNS Query", n.NodeId())
 	n.internalSendPacket(p)

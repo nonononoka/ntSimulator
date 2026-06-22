@@ -14,32 +14,6 @@ import (
 	"strings"
 )
 
-type dataWhenReceiveArpReply struct {
-	data            string
-	sourcePort      int
-	destinationPort int
-	protocol        string
-}
-
-type dataWhenReceiveDNSReply struct {
-	startTime   float64
-	headerSize  int
-	payloadSize int
-	protocol    string
-}
-
-type TCPConnectionKey struct {
-	destinationIP   string
-	destinationPort int
-}
-
-type pendingTCPData struct {
-	destinationIp   string
-	data            string
-	sourcePort      int
-	destinationPort int
-}
-
 // Nodeの構造体
 type host struct {
 	*basenode.BaseNode
@@ -54,8 +28,10 @@ type host struct {
 	waitingForDNSReply map[string][]*dataWhenReceiveDNSReply
 	urlToIpMapping     map[string]string // urlとipアドレスのmapping
 	dnsServerIp        string
-	tcpConnections     map[TCPConnectionKey]packet.TCPConnectionState
-	pendingTCPData     map[TCPConnectionKey]pendingTCPData
+	tcpConnections     map[tcpConnectionKey]*tcpConnectionStateValue
+	pendingTCPData     map[tcpConnectionKey]*pendingTCPData
+	windows            map[tcpConnectionKey]int // ウインドウ内のパケットのシーケンス番号
+	windowSize         int
 }
 
 func (n *host) ArrivedCount() int  { return n.arrivedCount }
@@ -63,7 +39,7 @@ func (n *host) ReceivedBytes() int { return n.receivedBytes }
 
 func NewHost(nodeId int, ipAddress string, mtu int, nes *nteventsched.NtEventSched) *host {
 	n := &host{BaseNode: basenode.NewBaseNode(nodeId, nes), fragmentedPackets: make(map[string]map[int]packetI.PacketI), mtu: mtu, MacAddress: address.NewMacAddress(address.GenerateRandomMAC()),
-		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[string]*address.MacAddress), waitingForArpReply: make(map[string][]*dataWhenReceiveArpReply), waitingForDNSReply: make(map[string][]*dataWhenReceiveDNSReply), urlToIpMapping: make(map[string]string), dnsServerIp: "192.168.1.200/24", tcpConnections: make(map[TCPConnectionKey]packet.TCPConnectionState), pendingTCPData: make(map[TCPConnectionKey]pendingTCPData)}
+		IpAddress: address.NewIPAddress(ipAddress), arpTable: make(map[string]*address.MacAddress), waitingForArpReply: make(map[string][]*dataWhenReceiveArpReply), waitingForDNSReply: make(map[string][]*dataWhenReceiveDNSReply), urlToIpMapping: make(map[string]string), dnsServerIp: "192.168.1.200/24", tcpConnections: make(map[tcpConnectionKey]*tcpConnectionStateValue), pendingTCPData: make(map[tcpConnectionKey]*pendingTCPData), windows: make(map[tcpConnectionKey]int), windowSize: 65535}
 	nes.AddNode(n)
 	n.scheduleDHCPPacket()
 	return n
@@ -139,6 +115,7 @@ func (n *host) processDataPacket(p packetI.PacketI) {
 	}
 }
 
+// 本書のset_tcp_trafficに相当するつもり
 func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, headerSize int, payloadSize int, protocol string) {
 	sendTime := startTime
 	sourcePort := n.selectRandomPort()
@@ -155,7 +132,7 @@ func (n *host) setTraffic(destinationIp *address.IpAddress, startTime float64, h
 		case "UDP":
 			n.sendUDPPacket(destinationIp, payload, sourcePort, destinationPort)
 		case "TCP":
-			n.startTCPConnectionAndSendPacket(destinationIp, payload, sourcePort, destinationPort, "")
+			n.startTCPConnectionAndSendPacket(destinationIp, payload, sourcePort, destinationPort, sendTime)
 		}
 	})
 }

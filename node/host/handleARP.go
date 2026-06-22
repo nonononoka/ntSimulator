@@ -7,21 +7,11 @@ import (
 	"nt-simulator/packet/packetI"
 )
 
-func (n *host) PrintArpTable() {
-	fmt.Printf("--- ARP Table (%v) ---\n", n.NodeId()) // もしホスト名などがあれば
-	fmt.Printf("%-15s   %-17s\n", "IP Address", "MAC Address")
-	fmt.Println("---------------------------------------")
-
-	if len(n.arpTable) == 0 {
-		fmt.Println("(No entries found)")
-		return
-	}
-
-	for ip, mac := range n.arpTable {
-		// 左詰めで綺麗に並べて表示
-		fmt.Printf("%-15s   %-17s\n", ip, mac)
-	}
-	fmt.Println("---------------------------------------")
+type dataWhenReceiveArpReply struct {
+	data            string
+	sourcePort      int
+	destinationPort int
+	protocol        string
 }
 
 func (n *host) processARPPacket(arpP *packet.ArpP) {
@@ -74,7 +64,7 @@ func (n *host) onArpReplyPacketReceived(ipAddress string) {
 			case "UDP":
 				n.sendUDPPacket(destinationIP, v.data, v.sourcePort, v.destinationPort)
 			case "TCP":
-				n.startTCPConnectionAndSendPacket(destinationIP, v.data, v.sourcePort, v.destinationPort, "")
+				n.startTCPConnectionAndSendPacket(destinationIP, v.data, v.sourcePort, v.destinationPort, n.GetNES().CurrentTime)
 			}
 		}
 		n.waitingForArpReply[ipAddress] = []*dataWhenReceiveArpReply{}
@@ -96,4 +86,21 @@ func (n *host) getMacAddressFromIp(ipAddress *address.IpAddress) *address.MacAdd
 	} else {
 		return nil
 	}
+}
+
+func (n *host) PrintArpTable() {
+	fmt.Printf("--- ARP Table (%v) ---\n", n.NodeId()) // もしホスト名などがあれば
+	fmt.Printf("%-15s   %-17s\n", "IP Address", "MAC Address")
+	fmt.Println("---------------------------------------")
+
+	if len(n.arpTable) == 0 {
+		fmt.Println("(No entries found)")
+		return
+	}
+
+	for ip, mac := range n.arpTable {
+		// 左詰めで綺麗に並べて表示
+		fmt.Printf("%-15s   %-17s\n", ip, mac)
+	}
+	fmt.Println("---------------------------------------")
 }

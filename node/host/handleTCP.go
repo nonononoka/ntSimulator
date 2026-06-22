@@ -1,153 +1,200 @@
 package host
 
 import (
-	"nt-simulator/address"
+	"math/rand"
 	"nt-simulator/packet"
 	"slices"
 	"strings"
-
-	"github.com/google/uuid"
 )
+
+type trafficInfo struct {
+	endTime     float64
+	payloadSize int
+}
+
+// 送信側→data, trafficInfo, state, sequenceNumber
+// 受信側→receivedSequenceNumbers, trafficInfo, state, acknowledgementNumber
+type tcpConnectionStateValue struct {
+	data string
+	trafficInfo
+	packet.TCPConnectionState
+	sequenceNumber          int
+	receivedSequenceNumbers map[int]struct{} // 受け取ったsequenceNumberたち。setがないのでこう書いている
+	acknowledgementNumber   int              // acknowledgementNumber未満のやつを受け取った
+}
+
+type tcpConnectionKey struct {
+	destinationIP   string
+	destinationPort int
+}
+
+type pendingTCPData struct {
+	destinationIp   string
+	data            string
+	sourcePort      int
+	destinationPort int
+}
 
 // TCPパケットを受け取ったときの処理
 func (n *host) processTCPPacket(p *packet.TCPP) {
 	if p.GetMacHeader().DestinationMac.String() == n.MacAddress.String() {
 		if p.GetIpHeader().DestIp.String() == n.IpAddress.String() {
 			flags := strings.Split(p.TCPHeader.Flags, ",")
-			if slices.Contains(flags, "SYN") && !slices.Contains(flags, "ACK") {
-				// SYNパケットを受信した場合、SYN-ACKを送信
-				n.sendTCPSYNACK(p)
-				n.logTCPControlPacketProcessed(p)
-			} else if slices.Contains(flags, "SYN") && slices.Contains(flags, "ACK") {
-				// SYN-ACKパケットを受信した場合、ACKを送信して、接続完了したのでpendingDataも送信
+			if slices.Contains(flags, "SYN") {
+				if slices.Contains(flags, "ACK") {
+					// SYN-ACKを受信した場合、ACKを返信してパケットを送信
+					// stateを更新して、ack番号をseq番号+1にする
+					n.establishTCPConnection(p)
+					n.sendTCPACK(p)
+					n.sendTCPDataPacket(p)
+					n.logTCPControlPacketProcessed(p)
+				} else {
+					// SYNパケットを受信した場合、SYN-ACKを送信
+					n.sendTCPSYNACK(p)
+					n.logTCPControlPacketProcessed(p)
+				}
+				return
+			}
+
+			if slices.Contains(flags, "ACK") {
+				n.handleAcknowledgement(p)
+			}
+
+			// 普通のデータTCPパケットが来たとき
+			if slices.Contains(flags, "PSH") {
+				// ACK番号を更新
+				n.updateACKNumber(p)
+				// ACKを返信
 				n.sendTCPACK(p)
-				n.establishTCPConnection(p)
-				n.logTCPControlPacketProcessed(p)
-			} else if slices.Contains(flags, "ACK") {
-				// ACKパケットを受信した場合、接続が確立されたとみなす
-				n.establishTCPConnection(p)
-				n.logTCPControlPacketProcessed(p)
-			} else if slices.Contains(flags, "FIN") {
+				n.processDataPacket(p)
+			}
+
+			if slices.Contains(flags, "FIN") {
 				// FINパケットを受信した場合、接続を修了
 				n.terminateTCPConnection(p)
-			} else {
-				n.processDataPacket(p)
 			}
 		}
 	}
 }
 
-func (n *host) logTCPControlPacketProcessed(p *packet.TCPP) {
-	n.GetNES().LogPacketInfo(p, "arrived", n.NodeId())
-	p.SetArrived(n.GetNES().CurrentTime)
-	n.GetNES().LogPacketInfo(p, "processed", n.NodeId())
-}
-
-func (n *host) sendTCPSYNACK(p *packet.TCPP) {
-	synAckPacketFlags := "SYN,ACK"
-	n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, "", p.TCPHeader.DestinationPort, p.TCPHeader.SourcePort, synAckPacketFlags)
-}
-
-func (n *host) sendTCPACK(p *packet.TCPP) {
-	ackPacketFlags := "ACK"
-	n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, "", p.TCPHeader.DestinationPort, p.TCPHeader.SourcePort, ackPacketFlags)
-}
-
-func (n *host) startTCPConnectionAndSendPacket(destinationIp *address.IpAddress, data string, sourcePort int, destinationPort int, flags string) {
-	destinationMac := n.getMacAddressFromIp(destinationIp) // destinationIPアドレスからmacアドレスをひく
-
-	// 宛先IPアドレスに対応するMacアドレスが未知の場合、arpリクエストを送信して終わり
-	if destinationMac == nil {
-		// ARPリクエストを送信して、パケットを待機リストに追加する
-		n.sendArpRequest(destinationIp)
-		n.waitingForArpReply[destinationIp.String()] = append(n.waitingForArpReply[destinationIp.String()], &dataWhenReceiveArpReply{data: data, sourcePort: sourcePort, destinationPort: destinationPort, protocol: "TCP"})
+// 実際のdataが入ったTCPパケットを送信
+func (n *host) sendTCPDataPacket(p *packet.TCPP) {
+	println("send tcp data packet")
+	connectionKey := n.createTCPConnectionKeyFromPacket(p)
+	if _, ok := n.tcpConnections[connectionKey]; !ok {
 		return
 	}
-	if !n.isTCPConnectionEstablished(destinationIp, destinationPort) {
-		connectionKey := TCPConnectionKey{destinationIP: destinationIp.String(), destinationPort: destinationPort}
-		n.pendingTCPData[connectionKey] = pendingTCPData{destinationIp: destinationIp.String(), destinationPort: destinationPort, sourcePort: sourcePort, data: data}
-		// 接続が未確立なので、ハンドシェイクを開始。これは実際にはaccept関数がやってくれる
-		n.initiateTCPHandshake(destinationIp, destinationMac, sourcePort, destinationPort)
-	} else {
-		n.sendTCPPacket(destinationIp, destinationMac, data, sourcePort, destinationPort, flags)
-	}
-}
+	trafficInfo := n.tcpConnections[connectionKey].trafficInfo
+	if n.GetNES().CurrentTime < trafficInfo.endTime {
+		for {
+			if n.windows[connectionKey] >= n.windowSize {
+				break
+			}
+			remainingData := n.tcpConnections[connectionKey].data
+			if len(remainingData) == 0 {
+				return
+			}
+			payloadSize := trafficInfo.payloadSize
+			if payloadSize > len(remainingData) {
+				payloadSize = len(remainingData)
+			}
+			dataToSend := remainingData[:payloadSize]
 
-func (n *host) sendTCPPacket(destinationIp *address.IpAddress, destinationMac *address.MacAddress, data string, sourcePort int, destinationPort int, flags string) {
-	tcpHeaderSize := 20
-	ipHeaderSize := 20
-	headerSize := tcpHeaderSize + ipHeaderSize
-	payloadSize := n.mtu - headerSize
-	totalSize := len(data) // goだとこれはバイト数になる
-	offset := 0
-	originalDataId := uuid.New().String()
+			n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, dataToSend, p.TCPHeader.DestinationPort, p.TCPHeader.SourcePort, "PSH", n.tcpConnections[connectionKey].sequenceNumber, n.tcpConnections[connectionKey].acknowledgementNumber)
+			n.tcpConnections[connectionKey].data = remainingData[payloadSize:]
+			// sequenceNumberは、これ以降を送るよってことなので、次送るときのために更新する
+			n.tcpConnections[connectionKey].sequenceNumber += len(dataToSend)
 
-	// SYN/ACK などペイロードなしの制御パケットも1回は送信する
-	if totalSize == 0 {
-		p := packet.NewTCPPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, n.GetNES().CurrentTime, originalDataId, false, 0, "", sourcePort, destinationPort, 0, 0, flags)
-		n.internalSendPacket(p)
-		return
-	}
-
-	for offset < totalSize {
-		moreFragment := (offset + payloadSize) < totalSize
-
-		end := offset + payloadSize
-		if end > totalSize {
-			end = totalSize
+			if len(n.tcpConnections[connectionKey].data) == 0 {
+				break
+			}
 		}
-		fragmentData := data[offset:end]
-		fragmentOffset := offset
-		p := packet.NewTCPPacket(n.MacAddress, destinationMac, n.IpAddress, destinationIp, 64, headerSize, n.GetNES().CurrentTime, originalDataId, moreFragment, fragmentOffset, fragmentData, sourcePort, destinationPort, 0, 0, flags)
+	}
+}
 
-		n.internalSendPacket(p) // 細かくfragmentにしたpacketを送信する
-		offset += payloadSize
+func (n *host) handleAcknowledgement(p *packet.TCPP) {
+	connectionKey := n.createTCPConnectionKeyFromPacket(p)
+	// ackNumber := p.TCPHeader.AcknowledgementNumber
+
+	if _, ok := n.tcpConnections[connectionKey]; !ok {
+		return
+	}
+
+	if _, ok := n.windows[connectionKey]; !ok {
+		// TODOここはよくわからん
+		n.windows[connectionKey] = 0
+	}
+}
+
+// 来たシーケンス番号を見て、シーケンス番号からpayloadLength分は受け取ったので
+// ack番号を更新する
+func (n *host) updateACKNumber(p *packet.TCPP) {
+	connectionKey := n.createTCPConnectionKeyFromPacket(p)
+	// sequenceNumberからpayloadLengthまで送ったよ
+	receivedSequenceNumber := p.TCPHeader.SequenceNumber
+	payloadLength := len(p.Payload)
+
+	// ack番号未満まで届いてる
+	currentACKNumber := n.tcpConnections[connectionKey].acknowledgementNumber
+	// 今まで届いた番号たち
+	receivedSequenceNumbers := n.tcpConnections[connectionKey].receivedSequenceNumbers
+
+	// 受信したシーケンス番号をセットに追加
+	for i := receivedSequenceNumber; i < receivedSequenceNumber+payloadLength; i++ {
+		receivedSequenceNumbers[i] = struct{}{}
+	}
+
+	// 期待する次のシーケンス番号を見つける
+	nextExpectedSeq := currentACKNumber
+	for {
+		if _, ok := receivedSequenceNumbers[nextExpectedSeq]; ok {
+			nextExpectedSeq++
+		} else {
+			break
+		}
+	}
+
+	// ACK番号を更新
+	if nextExpectedSeq != currentACKNumber {
+		// ack番号未満まで届いてるよ
+		n.tcpConnections[connectionKey].acknowledgementNumber = nextExpectedSeq
+	}
+}
+
+// SYNが来たときに返すやつ
+func (n *host) sendTCPSYNACK(p *packet.TCPP) {
+	tcpConnectionKey := n.createTCPConnectionKeyFromPacket(p)
+	sequenceNumber := 1 + rand.Intn(10000)
+	acknowledgementNumber := p.TCPHeader.SequenceNumber + 1
+
+	// 受信側は、コネクション情報を登録
+	if _, ok := n.tcpConnections[tcpConnectionKey]; !ok {
+		n.initiateConnectionInfo(tcpConnectionKey, "", packet.TCPConnectionStateSynReceived, sequenceNumber, acknowledgementNumber)
+	}
+	synAckPacketFlags := "SYN,ACK"
+	n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, "", p.TCPHeader.DestinationPort, p.TCPHeader.SourcePort, synAckPacketFlags, sequenceNumber, acknowledgementNumber)
+}
+
+// SYN-ACKが来たときに返すやつ
+func (n *host) sendTCPACK(p *packet.TCPP) {
+	tcpConnectionKey := n.createTCPConnectionKeyFromPacket(p)
+	if _, ok := n.tcpConnections[tcpConnectionKey]; ok {
+		ackPacketFlags := "ACK"
+		n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, "", p.TCPHeader.DestinationPort, p.TCPHeader.SourcePort, ackPacketFlags, n.tcpConnections[tcpConnectionKey].sequenceNumber, n.tcpConnections[tcpConnectionKey].acknowledgementNumber)
+	} else {
+		panic("Error: Connection key not found in tcp_connections.")
 	}
 }
 
 // TCP接続を確立する。接続が確立されたら、保存しておいたデータを送信する
 func (n *host) establishTCPConnection(p *packet.TCPP) {
-	tcpConnectionKey := TCPConnectionKey{destinationIP: p.GetIpHeader().SourceIp.String(), destinationPort: p.TCPHeader.SourcePort}
-	if n.isTCPConnectionEstablished(p.GetIpHeader().SourceIp, p.TCPHeader.SourcePort) {
-		return
-	}
-
-	n.updateTCPConnectionState(p.GetIpHeader().SourceIp.String(), p.TCPHeader.SourcePort, packet.TCPConnectionStateEstablished)
-	// 保存しておいたデータがあれば送信する
-	if pendingData, ok := n.pendingTCPData[tcpConnectionKey]; ok {
-		delete(n.pendingTCPData, tcpConnectionKey)
-		n.sendTCPPacket(p.GetIpHeader().SourceIp, p.GetMacHeader().SourceMac, pendingData.data, pendingData.sourcePort, pendingData.destinationPort, "")
-	}
-}
-
-func (n *host) isTCPConnectionEstablished(destinationIP *address.IpAddress, destinationPort int) bool {
-	if status, ok := n.tcpConnections[TCPConnectionKey{destinationIP: destinationIP.String(), destinationPort: destinationPort}]; ok {
-		if status == packet.TCPConnectionStateEstablished {
-			return true
-		} else {
-			return false
-		}
-	} else {
-		return false
-	}
-}
-
-func (n *host) initiateTCPHandshake(destinationIp *address.IpAddress, destinationMac *address.MacAddress, sourcePort int, destinationPort int) {
-	// establishedじゃなかったらSYNパケットを送信
-	if !n.isTCPConnectionEstablished(destinationIp, destinationPort) {
-		// 接続状態をSYN SENTに更新
-		n.updateTCPConnectionState(destinationIp.String(), destinationPort, packet.TCPConnectionStateSynSent)
-		// flagsを"SYN"にして送信
-		n.sendTCPPacket(destinationIp, destinationMac, "", sourcePort, destinationPort, "SYN")
-	}
-}
-
-// 指定された宛先に対するTCP接続の状態を更新
-func (n *host) updateTCPConnectionState(destinationIP string, destinatioPort int, newState packet.TCPConnectionState) {
-	n.tcpConnections[TCPConnectionKey{destinationIP: destinationIP, destinationPort: destinatioPort}] = newState
+	tcpConnectionKey := n.createTCPConnectionKeyFromPacket(p)
+	n.tcpConnections[tcpConnectionKey].TCPConnectionState = packet.TCPConnectionStateEstablished
+	n.tcpConnections[tcpConnectionKey].acknowledgementNumber = p.TCPHeader.SequenceNumber + 1
+	// 送信済みSYN分のシーケンス番号を進める
+	n.tcpConnections[tcpConnectionKey].sequenceNumber++
 }
 
 func (n *host) terminateTCPConnection(p *packet.TCPP) {
-	tcpConnectionKey := TCPConnectionKey{destinationIP: p.GetIpHeader().SourceIp.String(), destinationPort: p.TCPHeader.SourcePort}
-	delete(n.tcpConnections, tcpConnectionKey)
+	delete(n.tcpConnections, n.createTCPConnectionKeyFromPacket(p))
 }
